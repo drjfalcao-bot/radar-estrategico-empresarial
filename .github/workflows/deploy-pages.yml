@@ -15,55 +15,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build application with visual fallback
-        shell: bash
-        run: |
-          if npm run build; then
-            echo "React application built successfully."
-          else
-            echo "Build failed. Publishing the resilient static preview instead."
-            rm -rf dist
-            mkdir -p dist
-            cp index.html dist/index.html
-          fi
-
-      - name: Ensure deployable entry file exists
-        shell: bash
-        run: |
-          if [ ! -f dist/index.html ]; then
-            mkdir -p dist
-            cp index.html dist/index.html
-          fi
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./dist
-
   deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare static application
+        run: |
+          mkdir -p public
+          cp index.html public/index.html
+          cp styles.css public/styles.css
+          cp app.js public/app.js
+          touch public/.nojekyll
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
