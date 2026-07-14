@@ -38,8 +38,8 @@ jobs:
           grep -qi "Mandado de segurança" /tmp/radar-v3-app.js; PRICING=$?
 
           tr -d '\r\n' < v3/ext-core.b64 | base64 -d | gzip -dc > /tmp/v3-ext-core.js; EXT_CORE_DECODE=$?
-          tr -d '\r\n' < v3/ext-strategy.b64 | base64 -d | gzip -dc > /tmp/v3-ext-strategy.js; EXT_STRATEGY_DECODE=$?
-          tr -d '\r\n' < v3/ext-documents.b64 | base64 -d | gzip -dc > /tmp/v3-ext-documents.js; EXT_DOCUMENTS_DECODE=$?
+          cat v3/ext-strategy-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/v3-ext-strategy.js; EXT_STRATEGY_DECODE=$?
+          cat v3/ext-documents-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/v3-ext-documents.js; EXT_DOCUMENTS_DECODE=$?
           tr -d '\r\n' < v3/ext-calendar.b64 | base64 -d | gzip -dc > /tmp/v3-ext-calendar.js; EXT_CALENDAR_DECODE=$?
           tr -d '\r\n' < v3/ext-comparison.b64 | base64 -d | gzip -dc > /tmp/v3-ext-comparison.js; EXT_COMPARISON_DECODE=$?
           tr -d '\r\n' < v3/ext-style.b64 | base64 -d | gzip -dc > /tmp/v3-ext.css; EXT_CSS_DECODE=$?
