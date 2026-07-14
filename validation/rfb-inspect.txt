@@ -1,0 +1,298 @@
+64-      pgfnDiscountA: 0,
+65-      pgfnDiscountB: 0,
+66-      pgfnDiscountC: 35,
+67-      pgfnDiscountDGeneral: 65,
+68-      pgfnDiscountDFavored: 70,
+69-      pgfnMinInstallment: 100,
+70-      rfbMinPJ: 500,
+71-      rfbMinPF: 200
+72-    }
+73-  };
+74-
+75-  const CASE_DEFAULTS = {
+76-    id:'', companyName:'', tradeName:'', cnpj:'', contactName:'', phone:'', email:'', source:'prospeccao_ativa', owner:'José Falcão',
+77-    cadastralStatus:'ativa', taxRegime:'nao_informado', activity:'', revenueMonthly:0, revenueBand:'nao_informado', employees:0, groupCompanies:1, yearsActive:0,
+78-    businessPhase:'estavel', posture:'proteger', businessGoal:'', hasOperationalAssets:'nao_sei',
+79-    cashReserve:'nao_informado', sustainableMonthly:0, canSupportEntry:'nao_sei', workingCapital:'moderado', cashPressure:'moderada',
+80-    decisionMaker:'nao_sei', problemRecognition:'medio', documentWillingness:'medio', intentToSolve:'medio', decisionHorizon:'nao_informado',
+81-    b2bShare:50, marginLevel:'media', receivableDays:30, taxCashDependence:'moderada', priceFlexibility:'media', longContracts:'nao_sei', taxBenefits:'nao_sei', erpReadiness:'parcial', accountingReadiness:'parcial', splitReadiness:'baixa',
+82:    rfbDebt:0, pgfnSimple:0, pgfnPrev:0, pgfnOther:0, installmentActive:false, reparcelment:'nenhum', capag:'nao_sei', impediment:false, omissions:false, certificateNeed:'media',
+83-    execution:false, citation:false, block:false, seizure:false, expropriation:false, guarantee:false, processCount:0, exposedAssets:false, priorBlocks:false,
+84-    stage:'identificada', status:'em_analise', createdAt:'', updatedAt:'', lastMovementAt:'', nextAction:'', nextActionDate:'', meetingDate:'', proposalSentAt:'', signatureStatus:'nao_aplicavel', lostReason:'',
+85-    notes:[], history:[], simulations:[], selectedScenarioId:'',
+86-    manualStrategyTitle:'', manualStrategySummary:'', manualPlan:'',
+87-    proposal: { services:[], customDescription:'', customValue:0, paymentTerms:'', validity:'10 dias', notes:'', generatedAt:'' },
+88-    overrides: { closingScore:'', opportunityScore:'' }
+89-  };
+90-
+91-  let state = {
+92-    session: JSON.parse(localStorage.getItem(SESSION_KEY)||'null'),
+93-    db: loadDB(),
+94-    view: 'dashboard',
+95-    currentId: null,
+96-    caseTab: 'perfil',
+97-    pipelineSearch: '',
+98-    pipelineFilter: 'todos',
+99-    noteFilter: 'todos',
+100-    noteSearch: '',
+--
+228-    closing += valueMap(l.decisionHorizon,{ate_7:10,ate_30:7,ate_90:3,sem_prazo:-3,nao_informado:0},0);
+229-    closing += Math.round(need*0.12);
+230-    const inactive=daysSince(l.lastMovementAt);
+231-    if(inactive>21) closing-=20; else if(inactive>14) closing-=12; else if(inactive>7) closing-=6;
+232-    if(l.stage==='proposta') closing+=8;
+233-    if(l.stage==='negociacao') closing+=12;
+234-    if(l.stage==='assinatura') closing+=18;
+235-    if(l.stage==='ganho') closing=100;
+236-    if(l.stage==='perdido') closing=0;
+237-    if(String(l.overrides?.closingScore||'').trim()!=='') closing=clamp(l.overrides.closingScore);
+238-    closing=clamp(closing);
+239-
+240-    const opportunity = String(l.overrides?.opportunityScore||'').trim()!=='' ? clamp(l.overrides.opportunityScore) : clamp(need*0.7+closing*0.3);
+241-
+242-    return {rt:Math.round(rt),financial:Math.round(financialRisk),fiscal:Math.round(fiscalRisk),collection:Math.round(collection),need:Math.round(need),closing:Math.round(closing),opportunity:Math.round(opportunity)};
+243-  }
+244-
+245-  function totalPGFN(l){ return num(l.pgfnSimple)+num(l.pgfnPrev)+num(l.pgfnOther); }
+246:  function totalDebt(l){ return num(l.rfbDebt)+totalPGFN(l); }
+247-  function favored(l){ return ['simples','mei','me_epp','pf'].includes(l.taxRegime) || l.profile==='me_epp'; }
+248-  function minAdjusted(principal,months,min){
+249-    if(principal<=0) return {months:0,installment:0};
+250-    let m=Math.max(1,Math.floor(months)); let p=principal/m;
+251-    if(p<min){m=Math.max(1,Math.floor(principal/min)); p=principal/m;}
+252-    return {months:m,installment:p};
+253-  }
+254-
+255-  function strategyEngine(l,ratings){
+256-    const fronts=[];
+257-    let title='Diagnóstico e organização estratégica do passivo';
+258-    let summary='Recomenda-se consolidar as informações, validar a situação fiscal e construir cenários de regularização compatíveis com a capacidade financeira da empresa.';
+259-    let priority='Planejada';
+260-
+261-    if(ratings.rt>=55){ fronts.push('Adequação à Reforma Tributária','Revisão de caixa, preço e contratos'); }
+262-    if(totalDebt(l)>0){ fronts.push('Mapeamento e gestão do passivo','Simulação de regularização'); }
+263-    const effectiveExecution = l.execution || l.citation || l.block || l.seizure || l.expropriation;
+264-    if(effectiveExecution){
+--
+282-      priority='Imediata'; fronts.push('Contenção de atos expropriatórios','Leitura processual integral','Plano emergencial de regularização');
+283-    }
+284-    if(l.impediment) fronts.push('Plano alternativo diante de impedimento');
+285-    if(l.certificateNeed==='alta') fronts.push('Estratégia para regularidade fiscal');
+286-    if(ratings.financial>=55) fronts.push('Estruturação compatível com o caixa');
+287-
+288-    const plan = [
+289-      'Consolidar dados, débitos, processos e documentos relevantes.',
+290-      'Validar riscos, elegibilidade e restrições do caso.',
+291-      'Comparar o cenário atual, a inação e as alternativas de regularização.',
+292-      'Definir a estratégia integrada e o cronograma de implementação.',
+293-      'Apresentar a solução e acompanhar a decisão até a formalização.'
+294-    ];
+295-    return {title:l.manualStrategyTitle||title,summary:l.manualStrategySummary||summary,priority,fronts:[...new Set(fronts)],plan:l.manualPlan?l.manualPlan.split('\n').filter(Boolean):plan};
+296-  }
+297-
+298-  function simulate(l){
+299-    const s=state.db.settings.pricing;
+300:    const debtRFB=num(l.rfbDebt), debtPGFN=totalPGFN(l), debt=debtRFB+debtPGFN;
+301-    const inactionRate=clamp(s.inactionAnnualRate,0,100)/100;
+302-    const inactionTotal=debt*(1+inactionRate);
+303-
+304-    const rfbAdj=minAdjusted(debtRFB,60,s.rfbMinPJ||500);
+305-    const rfbScenario={
+306:      id:'rfb',name:'Receita — parcelamento ordinário',eligible:debtRFB>0,
+307-      original:debtRFB,entry:0,reduction:0,total:debtRFB,months:rfbAdj.months,installment:rfbAdj.installment,
+308-      note:'Projeção nominal, sem desconto, sujeita à atualização aplicável.'
+309-    };
+310-
+311-    const maxDisc=favored(l)?s.pgfnDiscountDFavored:s.pgfnDiscountDGeneral;
+312-    const discount={A:s.pgfnDiscountA,B:s.pgfnDiscountB,C:s.pgfnDiscountC,D:maxDisc,nao_sei:s.pgfnDiscountC}[l.capag] ?? s.pgfnDiscountC;
+313-    const entryRate=clamp(s.pgfnEntryRate,0,100)/100;
+314-    const entryMonths=favored(l)?s.pgfnEntryMonthsFavored:s.pgfnEntryMonthsGeneral;
+315-    const pgEntry=debtPGFN*entryRate;
+316-    const pgBase=debtPGFN-pgEntry;
+317-    const pgReduction=pgBase*clamp(discount,0,maxDisc)/100;
+318-    const pgBalance=pgBase-pgReduction;
+319-    const pgTerm=(num(l.pgfnPrev)>0 && num(l.pgfnSimple)+num(l.pgfnOther)===0)?60:145;
+320-    const pgAdj=minAdjusted(pgBalance,Math.max(1,pgTerm-entryMonths),s.pgfnMinInstallment||100);
+321-    const pgfnScenario={
+322-      id:'pgfn',name:l.impediment?'PGFN — cenário condicionado ao impedimento':'PGFN — transação parametrizada',eligible:debtPGFN>0,
+323-      original:debtPGFN,entry:pgEntry,entryMonths,reduction:pgReduction,total:pgEntry+pgBalance,months:pgAdj.months,installment:pgAdj.installment,discount,
+324-      note:l.impediment?'Há impedimento informado; validar elegibilidade e manter plano alternativo.':'Estimativa condicionada à modalidade, elegibilidade, CAPAG e validação dos débitos.'
+325-    };
+326-
+327-    const combined={
+328-      id:'combined',name:'Cenário estratégico combinado',eligible:debt>0,
+329-      original:debt,entry:pgEntry,reduction:pgReduction,total:debtRFB+pgEntry+pgBalance,
+330-      monthly:rfbAdj.installment+pgAdj.installment,
+331:      note:'Combina o tratamento atual da Receita com o cenário parametrizado dos débitos inscritos.'
+332-    };
+333-
+334-    const migrationDiscount=clamp(discount,0,maxDisc);
+335-    const migrationEntry=debtRFB*entryRate;
+336-    const migrationBase=debtRFB-migrationEntry;
+337-    const migrationReduction=migrationBase*migrationDiscount/100;
+338-    const migrationBalance=migrationBase-migrationReduction;
+339-    const migrationAdj=minAdjusted(migrationBalance,145-entryMonths,s.pgfnMinInstallment||100);
+340-    const migration={
+341:      id:'migration',name:'Cenário potencial de migração Receita → PGFN',eligible:debtRFB>0,
+342-      original:debtRFB,entry:migrationEntry,reduction:migrationReduction,total:migrationEntry+migrationBalance,months:migrationAdj.months,installment:migrationAdj.installment,
+343-      note:'Cenário potencial. A migração não é automática e depende de inscrição, elegibilidade e modalidade disponível.'
+344-    };
+345-
+346-    let best='combined';
+347-    if(debtPGFN>0 && debtRFB===0) best='pgfn';
+348-    if(debtRFB>0 && debtPGFN===0) best='rfb';
+349-    if(l.impediment && debtPGFN>0) best=debtRFB>0?'combined':'pgfn';
+350-
+351-    return {debt,inaction:{total:inactionTotal,increase:inactionTotal-debt,rate:s.inactionAnnualRate},rfb:rfbScenario,pgfn:pgfnScenario,combined,migration,best};
+352-  }
+353-
+354-  function pricingSuggestion(l){
+355-    const p=state.db.settings.pricing; const passivo=totalDebt(l); const processCount=Math.max(0,Number(l.processCount)||0);
+356-    const msInternal=passivo*(p.msPassivoRate/100);
+357-    const reportRate=passivo<=p.reportThreshold?p.reportRateLow:p.reportRateHigh;
+358-    const reportInternal=passivo*(reportRate/100);
+359-    let defenseMonthly=p.defenseTier3Monthly, tier=`Mais de ${p.defenseTier2Max} processos`;
+--
+380-  function topbar(){
+381-    return `<header class="topbar"><div class="brand" data-action="dashboard"><div class="brand-mark small">RE</div><div><strong>Radar Estratégico Empresarial</strong><span>Central de diagnóstico, simulação e pré-venda</span></div></div><nav class="topnav"><button data-nav="dashboard" class="${state.view==='dashboard'?'active':''}">Central</button><button data-nav="pipeline" class="${state.view==='pipeline'?'active':''}">Funil</button><button data-nav="settings" class="${state.view==='settings'?'active':''}">Parâmetros</button></nav><div class="top-user"><span>José Falcão</span><button data-action="logout">Sair</button></div></header>`;
+382-  }
+383-  function shell(content){ return `<div class="app">${topbar()}<main class="shell">${content}</main></div>`; }
+384-
+385-  function dashboardView(){
+386-    const leads=[...state.db.leads];
+387-    const open=leads.filter(l=>!['ganho','perdido'].includes(l.stage));
+388-    const hot=open.filter(l=>calculateRatings(l).closing>=70).length;
+389-    const stale=open.filter(l=>daysSince(l.lastMovementAt)>7).length;
+390-    const proposals=open.filter(l=>['proposta','negociacao','assinatura'].includes(l.stage)).length;
+391-    const ranked=[...open].sort((a,b)=>calculateRatings(b).opportunity-calculateRatings(a).opportunity).slice(0,6);
+392-    return shell(`
+393-      <section class="hero dashboard-hero"><div><div class="eyebrow">Central de Diagnóstico e Simulação</div><h1>Comece pelo perfil. Encontre a necessidade. Construa o melhor cenário.</h1><p>Use a análise acompanhada durante a reunião, gere ratings e simulações automáticas, produza o relatório e conduza a oportunidade até a assinatura.</p><div class="hero-actions"><button class="btn primary" data-action="new-case">+ Nova análise acompanhada</button><button class="btn secondary" data-nav="pipeline">Abrir funil</button></div></div><div class="hero-flow"><span>Perfil</span><i>→</i><span>Ratings</span><i>→</i><span>Cenários</span><i>→</i><span>Relatório</span><i>→</i><span>Proposta</span></div></section>
+394-      <section class="kpi-grid"><article><small>Casos abertos</small><strong>${open.length}</strong><span>Em prospecção e análise</span></article><article><small>Alta chance</small><strong>${hot}</strong><span>Closing Rate ≥ 70</span></article><article><small>Em proposta/decisão</small><strong>${proposals}</strong><span>Proposta, negociação ou assinatura</span></article><article><small>Parados há +7 dias</small><strong>${stale}</strong><span>Precisam de retomada</span></article></section>
+395-      <section class="tool-grid">
+396-        <button class="tool-card" data-action="new-case"><span class="tool-icon">01</span><div><strong>Perfil e Viabilidade</strong><p>Estrutura, faturamento, fase, caixa, capacidade e vontade real.</p></div></button>
+397-        <button class="tool-card" data-action="new-case"><span class="tool-icon">02</span><div><strong>Risco da Reforma</strong><p>Split payment, caixa, margem, preço, contratos, ERP e preparação.</p></div></button>
+398:        <button class="tool-card" data-action="new-case"><span class="tool-icon">03</span><div><strong>Débitos e Execução</strong><p>Receita, PGFN, CAPAG, cobrança, citação, bloqueio, penhora e garantia.</p></div></button>
+399-        <button class="tool-card" data-action="new-case"><span class="tool-icon">04</span><div><strong>Cenário Automático</strong><p>Melhor caminho estimado e comparação com o agravamento sem atuação.</p></div></button>
+400-      </section>
+401-      <section class="panel"><div class="panel-head"><div><div class="eyebrow">Prioridades</div><h2>Casos com maior potencial</h2></div><button class="btn secondary small" data-nav="pipeline">Ver todos</button></div>${ranked.length?`<div class="rank-list">${ranked.map((l,i)=>{const r=calculateRatings(l);return `<button class="rank-item" data-open="${l.id}"><span class="rank-pos">${i+1}</span><div><strong>${esc(l.companyName||'Empresa sem nome')}</strong><small>${esc(l.cnpj||'CNPJ não informado')} · ${STAGE_LABEL[l.stage]}</small></div><div class="score-pill ${ratingClass(r.closing)}">${r.closing}%</div><div class="rank-meta"><span>${daysSince(l.lastMovementAt)}d sem movimento</span><b>${esc(l.nextAction||'Próxima ação não definida')}</b></div></button>`}).join('')}</div>`:`<div class="empty">Nenhum caso criado. Inicie uma análise acompanhada.</div>`}</section>
+402-    `);
+403-  }
+404-
+405-  function caseView(){
+406-    const l=current(); if(!l){state.view='dashboard';return dashboardView();}
+407-    const ratings=calculateRatings(l), matrix=opportunityMatrix(ratings);
+408-    const tabs=[['perfil','Perfil'],['analise','Análise acompanhada'],['simulacoes','Cenários'],['estrategia','Estratégia'],['relatorio','Relatório'],['proposta','Proposta'],['caderno','Caderno']];
+409-    return shell(`<section class="case-head"><div><button class="backlink" data-nav="dashboard">← Central</button><div class="eyebrow">Caso em pré-venda</div><h1>${esc(l.companyName||'Nova empresa')}</h1><p>${esc(l.cnpj||'CNPJ não informado')} · ${STAGE_LABEL[l.stage]}</p></div><div class="case-head-actions"><select data-case-field="stage">${STAGES.map(([v,t])=>`<option value="${v}" ${l.stage===v?'selected':''}>${t}</option>`).join('')}</select><button class="btn secondary" data-nav="pipeline">Funil</button></div></section>
+410-      <section class="rating-strip">${ratingMini('RT-Score',ratings.rt)}${ratingMini('Financeiro',ratings.financial)}${ratingMini('Fiscal',ratings.fiscal)}${ratingMini('Cobrança',ratings.collection)}<article class="rating-mini closing"><small>Closing Rate</small><strong>${ratings.closing}</strong><span>${matrix.label}</span></article></section>
+411-      <nav class="case-tabs">${tabs.map(([v,t])=>`<button class="${state.caseTab===v?'active':''}" data-case-tab="${v}">${t}</button>`).join('')}</nav>
+412-      <section class="case-body">${caseTabContent(l,ratings,matrix)}</section>`);
+413-  }
+414-  function ratingMini(label,score){return `<article class="rating-mini ${ratingClass(score)}"><small>${label}</small><strong>${score}</strong><span>${ratingLabel(score)}</span></article>`;}
+415-  function caseTabContent(l,r,m){
+416-    return ({perfil:profileTab,analise:analysisTab,simulacoes:simulationsTab,estrategia:strategyTab,relatorio:reportTab,proposta:proposalTab,caderno:notebookTab})[state.caseTab](l,r,m);
+--
+463-    </div>`;
+464-  }
+465-
+466-  function analysisTab(l){
+467-    return `<div class="stack">${sectionHead('02','Análise Acompanhada','Use durante a reunião. Marque apenas o que é conhecido; o motor recalcula os ratings e a estratégia em tempo real.')}
+468-      <section class="panel form-panel"><div class="subhead"><h3>Reforma Tributária</h3><span>RT-Score</span></div><div class="form-grid">
+469-        ${field('Percentual aproximado B2B','b2bShare',l.b2bShare,'number',{help:'0 a 100%'})}
+470-        ${field('Margem operacional','marginLevel',l.marginLevel,'select',{options:[['baixa','Baixa'],['media','Média'],['alta','Alta']]})}
+471-        ${field('Prazo médio de recebimento (dias)','receivableDays',l.receivableDays,'number')}
+472-        ${field('Dependência do caixa tributário','taxCashDependence',l.taxCashDependence,'select',{options:[['baixa','Baixa'],['moderada','Moderada'],['alta','Alta']]})}
+473-        ${field('Flexibilidade para reajustar preços','priceFlexibility',l.priceFlexibility,'select',{options:[['alta','Alta'],['media','Média'],['baixa','Baixa']]})}
+474-        ${field('Contratos de longo prazo','longContracts',l.longContracts,'select',{options:[['nao_sei','Não sabemos'],['sim','Sim'],['nao','Não']]})}
+475-        ${field('Benefícios fiscais relevantes','taxBenefits',l.taxBenefits,'select',{options:[['nao_sei','Não sabemos'],['sim','Sim'],['nao','Não']]})}
+476-        ${field('Preparação do ERP','erpReadiness',l.erpReadiness,'select',{options:[['boa','Boa'],['parcial','Parcial'],['baixa','Baixa']]})}
+477-        ${field('Preparação contábil','accountingReadiness',l.accountingReadiness,'select',{options:[['boa','Boa'],['parcial','Parcial'],['baixa','Baixa']]})}
+478-        ${field('Preparação para split payment','splitReadiness',l.splitReadiness,'select',{options:[['boa','Boa'],['parcial','Parcial'],['baixa','Baixa']]})}
+479-      </div></section>
+480-      <section class="panel form-panel"><div class="subhead"><h3>Passivo Fiscal</h3><span>Fiscal Rate</span></div><div class="form-grid">
+481:        ${moneyField('Receita Federal','rfbDebt',l.rfbDebt)}
+482-        ${moneyField('PGFN — Simples','pgfnSimple',l.pgfnSimple)}
+483-        ${moneyField('PGFN — Previdenciário','pgfnPrev',l.pgfnPrev)}
+484-        ${moneyField('PGFN — Demais','pgfnOther',l.pgfnOther)}
+485-        ${field('CAPAG','capag',l.capag,'select',{options:[['nao_sei','Não sabemos'],['A','A'],['B','B'],['C','C'],['D','D']]})}
+486-        ${field('Necessidade de certidão','certificateNeed',l.certificateNeed,'select',{options:[['baixa','Baixa'],['media','Média'],['alta','Alta']]})}
+487-      </div><div class="check-grid">
+488-        ${checkCard('Parcelamento ativo','installmentActive',l.installmentActive,'Existe negociação que precisa ser validada e acompanhada.')}
+489-        ${checkCard('Impedimento de transação','impediment',l.impediment,'Pode exigir cenário alternativo.')}
+490-        ${checkCard('Omissões ou pendências cadastrais','omissions',l.omissions,'Pode impedir regularização e certidão.')}
+491-      </div></section>
+492-      <section class="panel form-panel"><div class="subhead"><h3>Cobrança, Execução e Exposição</h3><span>Collection Rate</span></div><div class="check-grid">
+493-        ${checkCard('Existe execução fiscal','execution',l.execution,'Judicialização da cobrança.')}
+494-        ${checkCard('Houve citação','citation',l.citation,'Exige controle processual e estratégia defensiva.')}
+495-        ${checkCard('Houve bloqueio','block',l.block,'SISBAJUD ou indisponibilidade financeira.')}
+496-        ${checkCard('Houve penhora','seizure',l.seizure,'Constrição de bens, recebíveis ou ativos.')}
+497-        ${checkCard('Há ato de expropriação','expropriation',l.expropriation,'Leilão, adjudicação ou fase equivalente.')}
+498-        ${checkCard('Existe garantia','guarantee',l.guarantee,'Apresentada ou disponível para avaliação.')}
+499-        ${checkCard('Ativos expostos','exposedAssets',l.exposedAssets,'Imóveis, veículos, faturamento ou recebíveis.')}
+500-        ${checkCard('Bloqueios anteriores','priorBlocks',l.priorBlocks,'Indica recorrência do risco patrimonial.')}
+501-      </div><div class="form-grid compact">${field('Quantidade de processos','processCount',l.processCount,'number')}</div><div class="form-actions"><button class="btn primary" data-next-tab="simulacoes">Calcular ratings e cenários →</button></div></section>
+502-    </div>`;
+503-  }
+504-
+505-  function simulationsTab(l,r){
+506-    const sim=simulate(l), strat=strategyEngine(l,r); const best=sim[sim.best];
+507-    return `<div class="stack">${sectionHead('03','Cenários Automáticos','O sistema identifica o caminho preliminar mais coerente e compara com o agravamento sem atuação. Premissas podem ser ajustadas nos Parâmetros.')}
+508-      <section class="score-dashboard">${ratingCard('RT-Score',r.rt,'Exposição à Reforma')}${ratingCard('Financial Rate',r.financial,'Risco de caixa')}${ratingCard('Fiscal Rate',r.fiscal,'Passivo e regularidade')}${ratingCard('Collection Rate',r.collection,'Cobrança e execução')}</section>
+509-      <section class="panel scenario-highlight"><div><div class="eyebrow">Melhor cenário preliminar</div><h2>${esc(best?.name||'Análise insuficiente')}</h2><p>${esc(best?.note||'Informe os valores do passivo para gerar a comparação.')}</p></div><div class="scenario-highlight-value"><small>Potencial estimado de redução</small><strong>${brl(best?.reduction||0)}</strong><span>Condicionado à elegibilidade e validação</span></div></section>
+510-      <section class="scenario-grid">
+511:        <article class="scenario-card current"><span>Cenário atual</span><h3>${brl(sim.debt)}</h3><p>Passivo informado hoje, antes de atualização e sem considerar medidas futuras.</p><ul><li>Parcela Receita estimada: ${brl(sim.rfb.installment)}</li><li>Parcela PGFN estimada: ${brl(sim.pgfn.installment)}</li><li>Risco de cobrança: ${ratingLabel(r.collection)}</li></ul></article>
+512-        <article class="scenario-card inaction"><span>Sem atuação</span><h3>${brl(sim.inaction.total)}</h3><p>Projeção gerencial de agravamento em 12 meses com taxa configurável de ${pct(sim.inaction.rate)}.</p><ul><li>Acréscimo projetado: ${brl(sim.inaction.increase)}</li><li>Continuidade da cobrança e menor previsibilidade</li><li>${l.execution?'Possibilidade de avanço das medidas processuais':'Risco de evolução para cobrança mais gravosa'}</li></ul></article>
+513-        <article class="scenario-card strategy"><span>Com estratégia</span><h3>${brl(best?.total||0)}</h3><p>${esc(strat.summary)}</p><ul><li>Entrada estimada: ${brl(best?.entry||0)}</li><li>Redução potencial: ${brl(best?.reduction||0)}</li><li>Estrutura compatível com análise integrada</li></ul></article>
+514-      </section>
+515-      <section class="panel"><div class="panel-head"><div><h2>Comparativo das simulações</h2><p>Valores nominais e preliminares.</p></div><button class="btn secondary small" data-action="save-snapshot">Salvar fotografia do cenário</button></div><div class="table-wrap"><table><thead><tr><th>Cenário</th><th>Valor original</th><th>Entrada</th><th>Redução</th><th>Prazo / parcela</th><th>Observação</th></tr></thead><tbody>
+516-        ${scenarioRow(sim.rfb)}${scenarioRow(sim.pgfn)}${scenarioRow(sim.migration)}
+517-      </tbody></table></div></section>
+518-      <section class="panel details"><details><summary>Ajustar premissas avançadas</summary><p>Os percentuais, mínimos e regras de cálculo ficam centralizados na tela <strong>Parâmetros</strong>. Isso evita alterar código para cada política comercial ou modalidade.</p><button class="btn secondary" data-nav="settings">Abrir parâmetros</button></details></section>
+519-      <div class="form-actions"><button class="btn primary" data-next-tab="estrategia">Construir estratégia →</button></div>
+520-    </div>`;
+521-  }
+522-  function ratingCard(title,score,sub){return `<article class="score-card ${ratingClass(score)}"><small>${title}</small><strong>${score}</strong><span>${sub}</span><b>${ratingLabel(score)}</b></article>`;}
+523-  function scenarioRow(s){
+524-    if(!s.eligible) return '';
+525-    const term=s.months?`${s.months}x de ${brl(s.installment)}`:'—';
+526-    return `<tr><td><strong>${esc(s.name)}</strong></td><td>${brl(s.original)}</td><td>${brl(s.entry)}</td><td>${brl(s.reduction)}</td><td>${term}</td><td>${esc(s.note)}</td></tr>`;
+527-  }
+528-
+529-  function strategyTab(l,r){
+--
+559-        <section class="report-section"><h2>2. Resumo executivo</h2><p>${executiveSummary(l,r,strat)}</p></section>
+560-        <section class="report-section"><h2>3. Indicadores de risco</h2><div class="report-ratings">${reportRating('RT-Score',r.rt,'Reforma Tributária')}${reportRating('Financial Rate',r.financial,'Caixa e capacidade')}${reportRating('Fiscal Rate',r.fiscal,'Passivo e regularidade')}${reportRating('Collection Rate',r.collection,'Cobrança e execução')}</div></section>
+561-        <section class="report-section"><h2>4. Principais fatores identificados</h2><ul>${reportFactors(l,r).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></section>
+562-        <section class="report-section"><h2>5. Comparação de cenários</h2><div class="report-scenarios"><div><span>Atual</span><strong>${brl(sim.debt)}</strong><p>Passivo informado e riscos já identificados.</p></div><div><span>Sem atuação</span><strong>${brl(sim.inaction.total)}</strong><p>Projeção gerencial de agravamento, com continuidade dos fatores de risco.</p></div><div class="featured"><span>Cenário estratégico</span><strong>${brl(best?.total||0)}</strong><p>Redução potencial estimada de ${brl(best?.reduction||0)}, condicionada à validação e elegibilidade.</p></div></div></section>
+563-        <section class="report-section"><h2>6. Estratégia indicada</h2><h3>${esc(strat.title)}</h3><p>${esc(strat.summary)}</p><div class="report-tags">${strat.fronts.map(x=>`<span>${esc(x)}</span>`).join('')}</div></section>
+564-        <section class="report-section"><h2>7. Plano de atuação</h2><ol>${strat.plan.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></section>
+565-        <section class="report-section"><h2>8. Conclusão</h2><p>${conclusionText(l,r,strat)}</p><div class="legal-note">Este relatório apresenta leitura preliminar baseada nas informações fornecidas e nas premissas registradas. Simulações e potenciais de redução dependem de validação documental, elegibilidade, classificação, modalidade disponível e análise individual do caso.</div></section>
+566-      </article>
+567-    </div>`;
+568-  }
+569-  function reportRating(title,score,sub){return `<div class="report-rating"><small>${title}</small><strong>${score}</strong><span>${sub}</span><b>${ratingLabel(score)}</b></div>`;}
+570-  function executiveSummary(l,r,s){
+571-    return `A análise indica necessidade estratégica ${ratingLabel(r.need).toLowerCase()}, com destaque para ${r.collection>=r.rt&&r.collection>=r.fiscal?'o estágio da cobrança e a exposição processual':r.fiscal>=r.rt?'a situação fiscal e a estrutura do passivo':'os impactos potenciais da Reforma Tributária sobre caixa, margem e operação'}. Considerando o perfil empresarial e os dados disponíveis, recomenda-se ${s.title.toLowerCase()}, com implementação por etapas e validação documental antes da adoção das medidas definitivas.`;
+572-  }
+573-  function reportFactors(l,r){
+574-    const a=[];
+575-    if(r.rt>=55)a.push('Exposição relevante a alterações de fluxo tributário, formação de preço e preparação operacional.');
+576-    if(r.financial>=55)a.push('Pressão financeira que exige compatibilidade entre estratégia, entrada e esforço mensal.');
+577:    if(totalDebt(l)>0)a.push(`Passivo informado de ${brl(totalDebt(l))}, distribuído entre Receita Federal e PGFN.`);
+578-    if(l.impediment)a.push('Impedimento informado que pode restringir modalidades e exigir plano alternativo.');
+579-    if(l.execution)a.push('Existência de execução fiscal, exigindo coordenação entre regularização e acompanhamento processual.');
+580-    if(l.citation)a.push('Citação já realizada, elevando a necessidade de controle defensivo do caso.');
+581-    if(l.block||l.seizure)a.push('Constrição patrimonial informada, com prioridade para avaliação processual e de garantias.');
+582-    if(l.cadastralStatus!=='ativa')a.push(`Situação cadastral ${labelOf('cadastralStatus',l.cadastralStatus).toLowerCase()}, com impacto potencial na regularização e continuidade.`);
+583-    return a.length?a:['Os dados disponíveis ainda não indicam evento crítico isolado; recomenda-se completar o diagnóstico.'];
+584-  }
+585-  function conclusionText(l,r,s){ return `O cenário recomenda atuação estruturada e proporcional ao nível de risco identificado. A estratégia proposta busca ampliar previsibilidade, organizar o passivo, preservar a capacidade operacional e criar condições para decisão segura. A próxima etapa consiste em confirmar documentos e premissas, validar o cenário aplicável e definir o escopo de implementação de ${s.title.toLowerCase()}.`; }
+586-
+587-  function proposalTab(l){
+588-    const price=pricingSuggestion(l), selected=new Set(l.proposal?.services||[]);
+589-    const services=[
+590-      ['ms','Mandado de segurança',price.ms.suggested,price.ms.formula,`Referência interna ${brl(price.ms.internal)}${price.ms.oab?` · mínimo OAB cadastrado ${brl(price.ms.oab)}`:''}`],
+591-      ['laudo','Laudo técnico/pericial',price.report.suggested,price.report.formula,`Referência interna ${brl(price.report.internal)}${price.report.oab?` · mínimo OAB cadastrado ${brl(price.report.oab)}`:''}`],
+592-      ['defesa','Gestão de passivo com defesa judicial',price.defense.monthly,`${price.defense.tier} · mínimo ${price.defense.minMonths} meses`,`Mensalidade sugerida ${brl(price.defense.monthly)} · total mínimo ${brl(price.defense.total)}`],
+593-      ['negociacao','Negociação e regularização do passivo',0,'Definir conforme escopo','Valor livre'],
+594-      ['reforma','Projeto de adequação à Reforma Tributária',0,'Definir conforme escopo','Valor livre'],
+595-      ['garantia','Estruturação de garantia',0,'Definir conforme escopo','Valor livre']
