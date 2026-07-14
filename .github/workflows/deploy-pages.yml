@@ -76,7 +76,7 @@ jobs:
           grep -q "create policy" supabase/schema.sql
           grep -q "approved users read owned leads admin reads all" supabase/schema.sql
 
-      - name: Validate RFB and PGFN calculator V3
+      - name: Validate compatibility calculator layer
         run: |
           set -euo pipefail
           cat cloud/calculator-v3-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/calculator-rfb-pgfn-v3.js
@@ -86,19 +86,23 @@ jobs:
           grep -q "Primeiro reparcelamento — entrada de 10%" /tmp/calculator-rfb-pgfn-v3.js
           grep -q "Segundo ou posterior — entrada de 20%" /tmp/calculator-rfb-pgfn-v3.js
           grep -q "Entrada parcelada e saldo em fases separadas" /tmp/calculator-rfb-pgfn-v3.js
-          grep -q "Parcelas da entrada PGFN" /tmp/calculator-rfb-pgfn-v3.js
-          grep -q "resolveContext(base)" /tmp/calculator-rfb-pgfn-v3.js
 
-      - name: Validate visible calculator workbench
+      - name: Validate final release
         run: |
           set -euo pipefail
+          node --check cloud/calculator-core.js
           node --check cloud/calculator-workbench.js
-          echo "13e483cd80e4dcb3484f25500a155bd4419c60b8e2211ada6a75e37d12afb691  cloud/calculator-workbench.js" | sha256sum -c -
-          grep -q "Simulador de regularização" cloud/calculator-workbench.js
-          grep -q "Aplicar e recalcular" cloud/calculator-workbench.js
-          grep -q "Usar sugestão automática" cloud/calculator-workbench.js
-          grep -q "Parcelas da entrada" cloud/calculator-workbench.js
-          grep -q "Redução estimada" cloud/calculator-workbench.js
+          node --check cloud/calculator-workbench-bootstrap.js
+          node --check cloud/final-polish.js
+          node tests/calculator-core.test.cjs
+          grep -q "2026.07.14-final.1" index.html
+          grep -q "TIS — Transação Individual Simplificada" cloud/calculator-workbench.js
+          grep -q "Transação de pequeno valor" cloud/calculator-workbench.js
+          grep -q "Cenário manual" cloud/calculator-workbench.js
+          grep -q "Separação por natureza" cloud/calculator-workbench.js
+          grep -q "Salvar fotografia" cloud/calculator-workbench.js
+          grep -q "Qualidade dos dados do caso" cloud/final-polish.js
+          grep -q "calculator-core.js" cloud/calculator-workbench-bootstrap.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
