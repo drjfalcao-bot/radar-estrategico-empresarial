@@ -4,6 +4,9 @@ window.RADAR_SUPABASE_CONFIG = Object.freeze({
   url: '',
   anonKey: '',
 
+  // Administrador principal do ambiente.
+  adminEmail: 'dr.jfalcao@gmail.com',
+
   // Migra os casos locais para o primeiro administrador aprovado.
   migrateLocalLeadsForAdmin: true,
 
