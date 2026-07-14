@@ -63,19 +63,33 @@ jobs:
           grep -q "Agenda de prospecção" /tmp/v3-ext-calendar.js
           grep -q "Cenário atual × condição buscada" /tmp/v3-ext-comparison.js
 
+      - name: Validate controlled access layer
+        run: |
+          set -euo pipefail
+          node --check cloud/supabase-config.js
+          node --check cloud/auth-gate.js
+          node --check cloud/admin-access.js
+          grep -q "Solicitar acesso" cloud/auth-gate.js
+          grep -q "approval_status" cloud/auth-gate.js
+          grep -q "owner_user_id" cloud/auth-gate.js
+          grep -q "Administração de acessos" cloud/admin-access.js
+          grep -q "create policy" supabase/schema.sql
+          grep -q "approved users read owned leads admin reads all" supabase/schema.sql
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
       - name: Prepare static application
         run: |
           set -euo pipefail
-          mkdir -p public/v3
+          mkdir -p public/v3 public/cloud
           cp index.html public/index.html
           cp v3-loader.js public/v3-loader.js
           cp v3-ext-loader.js public/v3-ext-loader.js
           cp v3/app2-*.b64 public/v3/
           cp v3/style-gz.b64 public/v3/
           cp v3/ext-*.b64 public/v3/
+          cp cloud/*.js public/cloud/
           touch public/.nojekyll
           find public -maxdepth 2 -type f -print
 
