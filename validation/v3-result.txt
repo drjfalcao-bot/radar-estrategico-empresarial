@@ -1,5 +1,5 @@
 result=FAIL
-commit=1026198431942a2acbf901494c15a5491982ec03
+commit=868f8d75ee73a77d19cf9363f3bd7989d95bf53c
 app_hash=1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16
 expected_app_hash=1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16
 css_hash=9e9169f5c46d38dd67e47762cd3bed795295a0985a2ca7be0deb0e5a2fa32187
@@ -22,7 +22,7 @@ ext_fronts_status=1
 ext_proposal_status=1
 ext_agenda_status=0
 ext_comparison_status=0
-validated_at=2026-07-14T14:09:57Z
+validated_at=2026-07-14T14:11:15Z
 /tmp/v3-ext-strategy.js:43
     'Plano plano de sneedimenir plaplardyção':'Do':'Examino.no çã
                                                   ^
