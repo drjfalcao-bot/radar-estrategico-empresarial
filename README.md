@@ -1,39 +1,158 @@
 # Radar Estratégico Empresarial
 
-Sistema de Apoio à Decisão e Leitura de Cenários de Risco Empresarial.
+Sistema de apoio à decisão, análise acompanhada e pré-venda consultiva para cenários fiscais, financeiros, processuais e de Reforma Tributária.
 
-## Propósito
+**Release estável:** `2026.07.14-final.1`
 
-Plataforma visual para qualificação de leads, leitura explicável de risco, comparação de cenários e apoio à decisão em reuniões empresariais. O produto não é um CRM.
+## Objetivo
 
-## Escopo da primeira entrega
+O Radar organiza o caminho entre a identificação da empresa e a assinatura do contrato:
 
-- Tela 1 — Ficha Estratégica Empresarial
-- formulário guiado por etapas
-- leitura dinâmica de indicadores
-- nível de confiança dos dados
-- modo apresentação
-- arquitetura preparada para autenticação Google, Supabase, segregação por usuário e geração de parecer em PDF
+`Perfil empresarial → Análise acompanhada → Ratings → Simulações → Estratégia → Relatório → Proposta → Funil`
 
-## Stack
+O produto não substitui o CRM pós-venda. Após a assinatura, o caso pode ser encaminhado ao fluxo operacional externo.
 
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
-- Supabase (fase de persistência e autenticação)
+## Módulos concluídos
 
-## Princípios
+- acesso por solicitação e aprovação;
+- perfis `admin` e `user`;
+- segregação de leads por responsável com RLS no Supabase;
+- visão global e reatribuição de leads para administrador;
+- Central de Diagnóstico e Simulação;
+- perfil estratégico empresarial;
+- análise acompanhada para reuniões;
+- RT-Score, Financial Rate, Fiscal Rate e Collection Rate;
+- Need Rate, Opportunity Rate e Closing Rate internos;
+- ranking de oportunidades;
+- funil de pré-venda com arraste;
+- caderno automático e anotações manuais;
+- agenda de prospecção e lembretes;
+- estratégia e frentes de trabalho editáveis;
+- plano de atuação derivado das frentes escolhidas;
+- construtor de relatório por blocos;
+- construtor de proposta por blocos;
+- precificação com referência, percentual e valor final editável;
+- assinatura profissional vinculada ao perfil do usuário;
+- relatório sem honorários por padrão;
+- proposta financeira separada do relatório;
+- comparação visual entre cenário atual, barreira e condição buscada.
 
-1. Indicadores explicáveis, sem falsa precisão.
-2. Separação entre dado informado, inferência e regra oficial.
-3. Cada consultor acessa somente seus próprios diagnósticos.
-4. O administrador possui visão global.
-5. Pareceres preservam versão, premissas e dados utilizados.
+## Simulador final de regularização
 
-## Desenvolvimento
+### Receita Federal
 
-```bash
-npm install
-npm run dev
-```
+- parcelamento ordinário;
+- primeiro reparcelamento com entrada de 10%;
+- segundo ou posterior com entrada de 20%;
+- entrada personalizada;
+- prazo total editável;
+- parcela mínima editável;
+- cálculo do valor da entrada, saldo e prestação.
+
+### PGFN
+
+Modalidades disponíveis:
+
+- transação parametrizada;
+- TIS — Transação Individual Simplificada;
+- transação de pequeno valor;
+- cenário manual.
+
+Parâmetros por caso:
+
+- percentual da entrada;
+- quantidade de parcelas da entrada;
+- redução estimada;
+- prazo total;
+- prazo previdenciário;
+- parcela mínima;
+- referência financeira de pequeno valor;
+- status de elegibilidade;
+- observação da modalidade.
+
+O fluxo é exibido em fases:
+
+1. entrada parcelada;
+2. saldo negociado.
+
+As naturezas são separadas para evitar a mistura de prazo previdenciário com Simples Nacional e demais débitos.
+
+## Segurança e persistência
+
+Projeto Supabase: `radar-estrategico-empresarial`
+
+Regras principais:
+
+- usuário pendente não acessa a aplicação;
+- usuário aprovado acessa somente as próprias leads;
+- administrador acessa todas as leads;
+- somente administrador aprova, rejeita, suspende e reatribui usuários/leads;
+- cada lead possui `owner_user_id`;
+- as políticas de acesso são aplicadas no banco por Row Level Security.
+
+## Qualidade dos dados
+
+Cada caso possui indicador de completude baseado nos campos essenciais para:
+
+- análise;
+- ratings;
+- simulações;
+- relatório;
+- proposta;
+- próxima ação comercial.
+
+A interface também aplica máscara a CNPJ e telefone.
+
+## Testes de regressão
+
+O deploy executa testes automáticos para:
+
+- Receita ordinária;
+- primeiro reparcelamento de 10%;
+- segundo reparcelamento de 20%;
+- PGFN com entrada de 6% parcelada em 12 meses;
+- separação de natureza previdenciária;
+- TIS;
+- pequeno valor;
+- sintaxe dos módulos;
+- presença dos módulos de autenticação, relatório, proposta, agenda e comparativo.
+
+Arquivo de teste:
+
+`tests/calculator-core.test.cjs`
+
+## Casos fictícios disponíveis
+
+Os casos com prefixo `[TESTE]` foram criados no Supabase para validação funcional. Incluem:
+
+1. Receita ordinária;
+2. primeiro reparcelamento de 10%;
+3. segundo reparcelamento de 20%;
+4. PGFN ME/EPP com entrada em 12x;
+5. PGFN geral com entrada em 6x;
+6. impedimento;
+7. execução, bloqueio e penhora;
+8. migração Receita → PGFN;
+9. TIS;
+10. pequeno valor.
+
+## Premissas e responsabilidade de uso
+
+As simulações são gerenciais e preliminares. Percentuais, prazos, reduções, elegibilidade, CAPAG, modalidades e condições devem ser confirmados conforme a norma, o edital e a situação efetivamente aplicáveis ao caso.
+
+O sistema diferencia:
+
+- dado informado;
+- premissa ajustada;
+- inferência do motor;
+- condição sujeita à validação.
+
+## Deploy
+
+A aplicação é publicada por GitHub Pages.
+
+URL:
+
+`https://drjfalcao-bot.github.io/radar-estrategico-empresarial/`
+
+O workflow de deploy valida a aplicação antes da publicação. A release não é enviada ao Pages quando os testes de regressão falham.
