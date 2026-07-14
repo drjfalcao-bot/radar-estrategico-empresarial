@@ -23,6 +23,7 @@ jobs:
         run: |
           set +e
           mkdir -p validation
+
           cat v3/app2-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/radar-v3-app.js
           APP_DECODE=$?
           tr -d '\r\n' < v3/style-gz.b64 | base64 -d | gzip -dc > /tmp/radar-v3.css
@@ -35,10 +36,50 @@ jobs:
           grep -q "Relatório Estratégico Empresarial" /tmp/radar-v3-app.js; REPORT=$?
           grep -q "Closing Rate" /tmp/radar-v3-app.js; CLOSING=$?
           grep -qi "Mandado de segurança" /tmp/radar-v3-app.js; PRICING=$?
+
+          tr -d '\r\n' < v3/ext-core.b64 | base64 -d | gzip -dc > /tmp/v3-ext-core.js; EXT_CORE_DECODE=$?
+          tr -d '\r\n' < v3/ext-strategy.b64 | base64 -d | gzip -dc > /tmp/v3-ext-strategy.js; EXT_STRATEGY_DECODE=$?
+          tr -d '\r\n' < v3/ext-documents.b64 | base64 -d | gzip -dc > /tmp/v3-ext-documents.js; EXT_DOCUMENTS_DECODE=$?
+          tr -d '\r\n' < v3/ext-calendar.b64 | base64 -d | gzip -dc > /tmp/v3-ext-calendar.js; EXT_CALENDAR_DECODE=$?
+          tr -d '\r\n' < v3/ext-comparison.b64 | base64 -d | gzip -dc > /tmp/v3-ext-comparison.js; EXT_COMPARISON_DECODE=$?
+          tr -d '\r\n' < v3/ext-style.b64 | base64 -d | gzip -dc > /tmp/v3-ext.css; EXT_CSS_DECODE=$?
+
+          EXT_CORE_HASH=$(sha256sum /tmp/v3-ext-core.js 2>/dev/null | awk '{print $1}')
+          EXT_STRATEGY_HASH=$(sha256sum /tmp/v3-ext-strategy.js 2>/dev/null | awk '{print $1}')
+          EXT_DOCUMENTS_HASH=$(sha256sum /tmp/v3-ext-documents.js 2>/dev/null | awk '{print $1}')
+          EXT_CALENDAR_HASH=$(sha256sum /tmp/v3-ext-calendar.js 2>/dev/null | awk '{print $1}')
+          EXT_COMPARISON_HASH=$(sha256sum /tmp/v3-ext-comparison.js 2>/dev/null | awk '{print $1}')
+          EXT_CSS_HASH=$(sha256sum /tmp/v3-ext.css 2>/dev/null | awk '{print $1}')
+
+          node --check /tmp/v3-ext-core.js >>/tmp/node-check.txt 2>&1; EXT_CORE_NODE=$?
+          node --check /tmp/v3-ext-strategy.js >>/tmp/node-check.txt 2>&1; EXT_STRATEGY_NODE=$?
+          node --check /tmp/v3-ext-documents.js >>/tmp/node-check.txt 2>&1; EXT_DOCUMENTS_NODE=$?
+          node --check /tmp/v3-ext-calendar.js >>/tmp/node-check.txt 2>&1; EXT_CALENDAR_NODE=$?
+          node --check /tmp/v3-ext-comparison.js >>/tmp/node-check.txt 2>&1; EXT_COMPARISON_NODE=$?
+          node --check v3-ext-loader.js >>/tmp/node-check.txt 2>&1; EXT_LOADER_NODE=$?
+
+          grep -q "Complete seu acesso" /tmp/v3-ext-core.js; EXT_PROFILE=$?
+          grep -q "Selecionar frentes de trabalho" /tmp/v3-ext-strategy.js; EXT_FRONTS=$?
+          grep -q "Composição financeira" /tmp/v3-ext-documents.js; EXT_PROPOSAL=$?
+          grep -q "Agenda de prospecção" /tmp/v3-ext-calendar.js; EXT_AGENDA=$?
+          grep -q "Cenário atual × condição buscada" /tmp/v3-ext-comparison.js; EXT_COMPARISON=$?
+
           EXPECTED_APP="1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16"
           EXPECTED_CSS="9e9169f5c46d38dd67e47762cd3bed795295a0985a2ca7be0deb0e5a2fa32187"
+          EXPECTED_EXT_CORE="3a51ea58391fe59211c2c5b3d25b3662875155a9060e4e11e38aac04315d9e9b"
+          EXPECTED_EXT_STRATEGY="65c466468ffdc47064dcbab424da837ed41bfb9bbe6498a89562c9e4fa913ce0"
+          EXPECTED_EXT_DOCUMENTS="4c5a23707af278b1fc42e76c8c36a8abbbbe338f09941a4b09dc37c9cac649e9"
+          EXPECTED_EXT_CALENDAR="f0e87739025f3d7d8ccf1b8bec78b77b7c6e87639f42e83e587446ce767a7fc2"
+          EXPECTED_EXT_COMPARISON="9766010b5642059af14fd12964c39364629cb2203853438bed40387b6c17cd96"
+          EXPECTED_EXT_CSS="2e358b1ccccebcdb1dffadfec1dd779fe50801f1f80091df5acd05afb9d69724"
+
           RESULT="PASS"
           if [ "$APP_DECODE" -ne 0 ] || [ "$CSS_DECODE" -ne 0 ] || [ "$NODE_STATUS" -ne 0 ] || [ "$CENTRAL" -ne 0 ] || [ "$REPORT" -ne 0 ] || [ "$CLOSING" -ne 0 ] || [ "$PRICING" -ne 0 ] || [ "$APP_HASH" != "$EXPECTED_APP" ] || [ "$CSS_HASH" != "$EXPECTED_CSS" ]; then RESULT="FAIL"; fi
+          if [ "$EXT_CORE_DECODE" -ne 0 ] || [ "$EXT_STRATEGY_DECODE" -ne 0 ] || [ "$EXT_DOCUMENTS_DECODE" -ne 0 ] || [ "$EXT_CALENDAR_DECODE" -ne 0 ] || [ "$EXT_COMPARISON_DECODE" -ne 0 ] || [ "$EXT_CSS_DECODE" -ne 0 ]; then RESULT="FAIL"; fi
+          if [ "$EXT_CORE_NODE" -ne 0 ] || [ "$EXT_STRATEGY_NODE" -ne 0 ] || [ "$EXT_DOCUMENTS_NODE" -ne 0 ] || [ "$EXT_CALENDAR_NODE" -ne 0 ] || [ "$EXT_COMPARISON_NODE" -ne 0 ] || [ "$EXT_LOADER_NODE" -ne 0 ]; then RESULT="FAIL"; fi
+          if [ "$EXT_PROFILE" -ne 0 ] || [ "$EXT_FRONTS" -ne 0 ] || [ "$EXT_PROPOSAL" -ne 0 ] || [ "$EXT_AGENDA" -ne 0 ] || [ "$EXT_COMPARISON" -ne 0 ]; then RESULT="FAIL"; fi
+          if [ "$EXT_CORE_HASH" != "$EXPECTED_EXT_CORE" ] || [ "$EXT_STRATEGY_HASH" != "$EXPECTED_EXT_STRATEGY" ] || [ "$EXT_DOCUMENTS_HASH" != "$EXPECTED_EXT_DOCUMENTS" ] || [ "$EXT_CALENDAR_HASH" != "$EXPECTED_EXT_CALENDAR" ] || [ "$EXT_COMPARISON_HASH" != "$EXPECTED_EXT_COMPARISON" ] || [ "$EXT_CSS_HASH" != "$EXPECTED_EXT_CSS" ]; then RESULT="FAIL"; fi
+
           {
             echo "result=$RESULT"
             echo "commit=${GITHUB_SHA}"
@@ -53,6 +94,17 @@ jobs:
             echo "report_module_status=$REPORT"
             echo "closing_module_status=$CLOSING"
             echo "pricing_module_status=$PRICING"
+            echo "ext_core_hash=$EXT_CORE_HASH"
+            echo "ext_strategy_hash=$EXT_STRATEGY_HASH"
+            echo "ext_documents_hash=$EXT_DOCUMENTS_HASH"
+            echo "ext_calendar_hash=$EXT_CALENDAR_HASH"
+            echo "ext_comparison_hash=$EXT_COMPARISON_HASH"
+            echo "ext_css_hash=$EXT_CSS_HASH"
+            echo "ext_profile_status=$EXT_PROFILE"
+            echo "ext_fronts_status=$EXT_FRONTS"
+            echo "ext_proposal_status=$EXT_PROPOSAL"
+            echo "ext_agenda_status=$EXT_AGENDA"
+            echo "ext_comparison_status=$EXT_COMPARISON"
             echo "validated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } > validation/v3-result.txt
           cat /tmp/node-check.txt >> validation/v3-result.txt
