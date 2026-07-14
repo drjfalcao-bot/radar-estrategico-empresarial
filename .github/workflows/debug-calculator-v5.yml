@@ -1,0 +1,77 @@
+name: Debug Calculator V5
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'validation/run-calculator-debug.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Inspect active source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p validation
+          cat v3/app2-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/app.js
+          python3 - <<'PY' > validation/calculator-v5-debug.txt
+          from pathlib import Path
+          s=Path('/tmp/app.js').read_text(encoding='utf-8')
+          blocks={
+          'rfb':"""    const rfbAdj=minAdjusted(debtRFB,60,s.rfbMinPJ||500);
+    const rfbScenario={
+      id:'rfb',name:'Receita — parcelamento ordinário',eligible:debtRFB>0,
+      original:debtRFB,entry:0,reduction:0,total:debtRFB,months:rfbAdj.months,installment:rfbAdj.installment,
+      note:'Projeção nominal, sem desconto, sujeita à atualização aplicável.'
+    };""",
+          'pgfn':"""    const maxDisc=favored(l)?s.pgfnDiscountDFavored:s.pgfnDiscountDGeneral;
+    const discount={A:s.pgfnDiscountA,B:s.pgfnDiscountB,C:s.pgfnDiscountC,D:maxDisc,nao_sei:s.pgfnDiscountC}[l.capag] ?? s.pgfnDiscountC;
+    const entryRate=clamp(s.pgfnEntryRate,0,100)/100;
+    const entryMonths=favored(l)?s.pgfnEntryMonthsFavored:s.pgfnEntryMonthsGeneral;
+    const pgEntry=debtPGFN*entryRate;
+    const pgBase=debtPGFN-pgEntry;
+    const pgReduction=pgBase*clamp(discount,0,maxDisc)/100;
+    const pgBalance=pgBase-pgReduction;
+    const pgTerm=(num(l.pgfnPrev)>0 && num(l.pgfnSimple)+num(l.pgfnOther)===0)?60:145;
+    const pgAdj=minAdjusted(pgBalance,Math.max(1,pgTerm-entryMonths),s.pgfnMinInstallment||100);
+    const pgfnScenario={
+      id:'pgfn',name:l.impediment?'PGFN — cenário condicionado ao impedimento':'PGFN — transação parametrizada',eligible:debtPGFN>0,
+      original:debtPGFN,entry:pgEntry,entryMonths,reduction:pgReduction,total:pgEntry+pgBalance,months:pgAdj.months,installment:pgAdj.installment,discount,
+      note:l.impediment?'Há impedimento informado; validar elegibilidade e manter plano alternativo.':'Estimativa condicionada à modalidade, elegibilidade, CAPAG e validação dos débitos.'
+    };""",
+          'migration':"""    const migration={
+      id:'migration',name:'Cenário potencial de migração Receita → PGFN',eligible:debtRFB>0,
+      original:debtRFB,entry:migrationEntry,reduction:migrationReduction,total:migrationEntry+migrationBalance,months:migrationAdj.months,installment:migrationAdj.installment,
+      note:'Cenário potencial. A migração não é automática e depende de inscrição, elegibilidade e modalidade disponível.'
+    };""",
+          'field':"""        ${field('CAPAG','capag',l.capag,'select',{options:[['nao_sei','Não sabemos'],['A','A'],['B','B'],['C','C'],['D','D']]})}
+        ${field('Necessidade de certidão','certificateNeed',l.certificateNeed,'select',{options:[['baixa','Baixa'],['media','Média'],['alta','Alta']]})}""",
+          'sim_header':"""  function simulationsTab(l,r){
+    const sim=simulate(l), strat=strategyEngine(l,r); const best=sim[sim.best];""",
+          'current_card':"""        <article class="scenario-card current"><span>Cenário atual</span><h3>${brl(sim.debt)}</h3><p>Passivo informado hoje, antes de atualização e sem considerar medidas futuras.</p><ul><li>Parcela Receita estimada: ${brl(sim.rfb.installment)}</li><li>Parcela PGFN estimada: ${brl(sim.pgfn.installment)}</li><li>Risco de cobrança: ${ratingLabel(r.collection)}</li></ul></article>""",
+          'strategy_card':"""        <article class="scenario-card strategy"><span>Com estratégia</span><h3>${brl(best?.total||0)}</h3><p>${esc(strat.summary)}</p><ul><li>Entrada estimada: ${brl(best?.entry||0)}</li><li>Redução potencial: ${brl(best?.reduction||0)}</li><li>Estrutura compatível com análise integrada</li></ul></article>""",
+          'details':"""      <section class="panel details"><details><summary>Ajustar premissas avançadas</summary><p>Os percentuais, mínimos e regras de cálculo ficam centralizados na tela <strong>Parâmetros</strong>. Isso evita alterar código para cada política comercial ou modalidade.</p><button class="btn secondary" data-nav="settings">Abrir parâmetros</button></details></section>""",
+          'scenario_row':"""  function scenarioRow(s){
+    if(!s.eligible) return '';
+    const term=s.months?`${s.months}x de ${brl(s.installment)}`:'—';
+    return `<tr><td><strong>${esc(s.name)}</strong></td><td>${brl(s.original)}</td><td>${brl(s.entry)}</td><td>${brl(s.reduction)}</td><td>${term}</td><td>${esc(s.note)}</td></tr>`;
+  }"""
+          }
+          print('sha256_source=',__import__('hashlib').sha256(s.encode()).hexdigest())
+          for k,v in blocks.items(): print(k, s.count(v))
+          PY
+      - name: Commit diagnostics
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add validation/calculator-v5-debug.txt
+          git commit -m "chore: record calculator V5 diagnostics [skip ci]"
+          git push
