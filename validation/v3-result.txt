@@ -1,5 +1,5 @@
 result=FAIL
-commit=2b9b8e71bd3a06c293a605eee9cb85f2a63330e5
+commit=00cfb49c267e122dc70d194ef4a4273ff796dde8
 app_hash=1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16
 expected_app_hash=1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16
 css_hash=9e9169f5c46d38dd67e47762cd3bed795295a0985a2ca7be0deb0e5a2fa32187
@@ -22,7 +22,7 @@ ext_fronts_status=0
 ext_proposal_status=1
 ext_agenda_status=0
 ext_comparison_status=0
-validated_at=2026-07-14T14:17:32Z
+validated_at=2026-07-14T14:17:56Z
 /tmp/v3-ext-documents.js:49
   const valueOf = (lead, keys, fallback (lreferênc    showTad, -referOf = (ack ofback )wTad, -ueOf = (strtsc  ack.split('.'valueeeeelealu,
                                          ^^^^^^^^^
