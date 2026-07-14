@@ -76,6 +76,19 @@ jobs:
           grep -q "create policy" supabase/schema.sql
           grep -q "approved users read owned leads admin reads all" supabase/schema.sql
 
+      - name: Validate RFB and PGFN calculator V2
+        run: |
+          set -euo pipefail
+          cat cloud/calc-v2-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/calculator-rfb-pgfn-v2.js
+          echo "f46513bad32e9629d3eead72b9d8eec8351f557c086913aacfabc6aa8f3920fa  /tmp/calculator-rfb-pgfn-v2.js" | sha256sum -c -
+          node --check /tmp/calculator-rfb-pgfn-v2.js
+          node --check cloud/calculator-v2-loader.js
+          grep -q "Primeiro reparcelamento — entrada de 10%" /tmp/calculator-rfb-pgfn-v2.js
+          grep -q "Segundo ou posterior — entrada de 20%" /tmp/calculator-rfb-pgfn-v2.js
+          grep -q "Entrada parcelada e saldo em fases separadas" /tmp/calculator-rfb-pgfn-v2.js
+          grep -q "Parcelas da entrada PGFN" /tmp/calculator-rfb-pgfn-v2.js
+          grep -q "Prazo total PGFN" /tmp/calculator-rfb-pgfn-v2.js
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
@@ -90,6 +103,7 @@ jobs:
           cp v3/style-gz.b64 public/v3/
           cp v3/ext-*.b64 public/v3/
           cp cloud/*.js public/cloud/
+          cp cloud/calc-v2-*.b64 public/cloud/
           touch public/.nojekyll
           find public -maxdepth 2 -type f -print
 
