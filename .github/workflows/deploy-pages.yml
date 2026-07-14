@@ -27,7 +27,7 @@ jobs:
       - name: Validate unified V3 package
         run: |
           set -euo pipefail
-          cat v3/app-gz-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/radar-v3-app.js
+          cat v3/app2-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/radar-v3-app.js
           tr -d '\r\n' < v3/style-gz.b64 | base64 -d | gzip -dc > /tmp/radar-v3.css
           echo "1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16  /tmp/radar-v3-app.js" | sha256sum -c -
           echo "9e9169f5c46d38dd67e47762cd3bed795295a0985a2ca7be0deb0e5a2fa32187  /tmp/radar-v3.css" | sha256sum -c -
@@ -46,7 +46,7 @@ jobs:
           mkdir -p public/v3
           cp index.html public/index.html
           cp v3-loader.js public/v3-loader.js
-          cp v3/app-gz-*.b64 public/v3/
+          cp v3/app2-*.b64 public/v3/
           cp v3/style-gz.b64 public/v3/
           touch public/.nojekyll
           find public -maxdepth 2 -type f -print
