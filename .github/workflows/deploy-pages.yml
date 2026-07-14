@@ -76,20 +76,23 @@ jobs:
           grep -q "create policy" supabase/schema.sql
           grep -q "approved users read owned leads admin reads all" supabase/schema.sql
 
-      - name: Validate calculator core and lightweight scenarios
+      - name: Validate lightweight scenarios release
         run: |
           set -euo pipefail
           node --check cloud/calculator-core.js
+          node --check cloud/active-case-context.js
           node --check cloud/scenario-lite.js
           node tests/calculator-core.test.cjs
-          grep -q "2026.07.14-final.4" index.html
+          grep -q "2026.07.14-final.5" index.html
+          grep -q "active-case-context.js" index.html
+          grep -q "scenario-lite.js" index.html
           grep -q "Primeiro reparcelamento — 10%" cloud/scenario-lite.js
           grep -q "Segundo ou posterior — 20%" cloud/scenario-lite.js
           grep -q "TIS — Transação Individual Simplificada" cloud/scenario-lite.js
           grep -q "Pequeno valor" cloud/scenario-lite.js
           grep -q "Cenário manual" cloud/scenario-lite.js
           grep -q "Separação por natureza" cloud/scenario-lite.js
-          grep -q "scenario-lite.js" index.html
+          grep -q "digits(item.cnpj) === identity.cnpj" cloud/active-case-context.js
           ! grep -q "calculator-workbench.js" index.html
           ! grep -q "calculator-v3-loader.js" index.html
           ! grep -q "scenario-context-fix.js" index.html
