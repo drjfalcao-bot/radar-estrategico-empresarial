@@ -35,7 +35,7 @@ jobs:
           grep -q "Central de Diagnóstico e Simulação" /tmp/radar-v3-app.js
           grep -q "Relatório Estratégico Empresarial" /tmp/radar-v3-app.js
           grep -q "Closing Rate" /tmp/radar-v3-app.js
-          grep -q "Mandado de Segurança" /tmp/radar-v3-app.js
+          grep -qi "Mandado de segurança" /tmp/radar-v3-app.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
