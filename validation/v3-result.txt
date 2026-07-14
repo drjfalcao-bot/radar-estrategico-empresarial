@@ -1,5 +1,5 @@
-result=FAIL
-commit=b034effac8194bbb7c9deef7097dd6e49320723a
+result=PASS
+commit=d5e9b45df136fd6387d717aa346c48bdab5d44d6
 app_hash=1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16
 expected_app_hash=1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16
 css_hash=9e9169f5c46d38dd67e47762cd3bed795295a0985a2ca7be0deb0e5a2fa32187
@@ -13,22 +13,13 @@ closing_module_status=0
 pricing_module_status=0
 ext_core_hash=3a51ea58391fe59211c2c5b3d25b3662875155a9060e4e11e38aac04315d9e9b
 ext_strategy_hash=65c466468ffdc47064dcbab424da837ed41bfb9bbe6498a89562c9e4fa913ce0
-ext_documents_hash=0f258bb3ef5ca0534d5ce8291480dffecbe4376d279a51d51c20c9b6b2db5fa2
+ext_documents_hash=4c5a23707af278b1fc42e76c8c36a8abbbbe338f09941a4b09dc37c9cac649e9
 ext_calendar_hash=f0e87739025f3d7d8ccf1b8bec78b77b7c6e87639f42e83e587446ce767a7fc2
 ext_comparison_hash=9766010b5642059af14fd12964c39364629cb2203853438bed40387b6c17cd96
 ext_css_hash=2e358b1ccccebcdb1dffadfec1dd779fe50801f1f80091df5acd05afb9d69724
 ext_profile_status=0
 ext_fronts_status=0
-ext_proposal_status=1
+ext_proposal_status=0
 ext_agenda_status=0
 ext_comparison_status=0
-validated_at=2026-07-14T14:20:11Z
-/tmp/v3-ext-documents.js:49
-  const valueOf = (lead, keys, fallback (lreferênc    showTad, -referOf = (ack ofback )wTad, -ueOf = (strtsc  ack.split('.'valueeeeelealu,
-                                         ^^^^^^^^^
-
-SyntaxError: missing ) after argument list
-    at wrapSafe (node:internal/modules/cjs/loader:1713:18)
-    at checkSyntax (node:internal/main/check_syntax:78:3)
-
-Node.js v22.23.1
+validated_at=2026-07-14T14:21:01Z
