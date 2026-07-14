@@ -76,33 +76,24 @@ jobs:
           grep -q "create policy" supabase/schema.sql
           grep -q "approved users read owned leads admin reads all" supabase/schema.sql
 
-      - name: Validate compatibility calculator layer
-        run: |
-          set -euo pipefail
-          cat cloud/calculator-v3-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/calculator-rfb-pgfn-v3.js
-          echo "8a78ef635a934e8157f142ea61585f7582ac96e3443876d2e4615e999c6c5d2a  /tmp/calculator-rfb-pgfn-v3.js" | sha256sum -c -
-          node --check /tmp/calculator-rfb-pgfn-v3.js
-          node --check cloud/calculator-v3-loader.js
-          grep -q "Primeiro reparcelamento — entrada de 10%" /tmp/calculator-rfb-pgfn-v3.js
-          grep -q "Segundo ou posterior — entrada de 20%" /tmp/calculator-rfb-pgfn-v3.js
-          grep -q "Entrada parcelada e saldo em fases separadas" /tmp/calculator-rfb-pgfn-v3.js
-
-      - name: Validate final release
+      - name: Validate calculator core and lightweight scenarios
         run: |
           set -euo pipefail
           node --check cloud/calculator-core.js
-          node --check cloud/calculator-workbench.js
-          node --check cloud/calculator-workbench-bootstrap.js
-          node --check cloud/final-polish.js
+          node --check cloud/scenario-lite.js
           node tests/calculator-core.test.cjs
-          grep -q "2026.07.14-final.1" index.html
-          grep -q "TIS — Transação Individual Simplificada" cloud/calculator-workbench.js
-          grep -q "Transação de pequeno valor" cloud/calculator-workbench.js
-          grep -q "Cenário manual" cloud/calculator-workbench.js
-          grep -q "Separação por natureza" cloud/calculator-workbench.js
-          grep -q "Salvar fotografia" cloud/calculator-workbench.js
-          grep -q "Qualidade dos dados do caso" cloud/final-polish.js
-          grep -q "calculator-core.js" cloud/calculator-workbench-bootstrap.js
+          grep -q "2026.07.14-final.4" index.html
+          grep -q "Primeiro reparcelamento — 10%" cloud/scenario-lite.js
+          grep -q "Segundo ou posterior — 20%" cloud/scenario-lite.js
+          grep -q "TIS — Transação Individual Simplificada" cloud/scenario-lite.js
+          grep -q "Pequeno valor" cloud/scenario-lite.js
+          grep -q "Cenário manual" cloud/scenario-lite.js
+          grep -q "Separação por natureza" cloud/scenario-lite.js
+          grep -q "scenario-lite.js" index.html
+          ! grep -q "calculator-workbench.js" index.html
+          ! grep -q "calculator-v3-loader.js" index.html
+          ! grep -q "scenario-context-fix.js" index.html
+          ! grep -q "final-polish.js" index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
