@@ -48,7 +48,7 @@ jobs:
           tr -d '\r\n' < v3/ext-style.b64 | base64 -d | gzip -dc > /tmp/v3-ext.css
           echo "3a51ea58391fe59211c2c5b3d25b3662875155a9060e4e11e38aac04315d9e9b  /tmp/v3-ext-core.js" | sha256sum -c -
           echo "65c466468ffdc47064dcbab424da837ed41bfb9bbe6498a89562c9e4fa913ce0  /tmp/v3-ext-strategy.js" | sha256sum -c -
-          echo "4c5a23707af278b1fc42e76c8c36a8abbbhe338f09941a4b09dc37c9cac649e9  /tmp/v3-ext-documents.js" | sha256sum -c -
+          echo "4c5a23707af278b1fc42e76c8c36a8abbbbe338f09941a4b09dc37c9cac649e9  /tmp/v3-ext-documents.js" | sha256sum -c -
           echo "f0e87739025f3d7d8ccf1b8bec78b77b7c6e87639f42e83e587446ce767a7fc2  /tmp/v3-ext-calendar.js" | sha256sum -c -
           echo "9766010b5642059af14fd12964c39364629cb2203853438bed40387b6c17cd96  /tmp/v3-ext-comparison.js" | sha256sum -c -
           echo "2e358b1ccccebcdb1dffadfec1dd779fe50801f1f80091df5acd05afb9d69724  /tmp/v3-ext.css" | sha256sum -c -
