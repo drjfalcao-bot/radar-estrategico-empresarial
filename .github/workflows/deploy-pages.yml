@@ -42,7 +42,7 @@ jobs:
           set -euo pipefail
           tr -d '\r\n' < v3/ext-core.b64 | base64 -d | gzip -dc > /tmp/v3-ext-core.js
           cat v3/ext-strategy-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/v3-ext-strategy.js
-          cat v3/ext-documents-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/v3-ext-documents.js
+          cat v3/ext-doc2-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/v3-ext-documents.js
           tr -d '\r\n' < v3/ext-calendar.b64 | base64 -d | gzip -dc > /tmp/v3-ext-calendar.js
           tr -d '\r\n' < v3/ext-comparison.b64 | base64 -d | gzip -dc > /tmp/v3-ext-comparison.js
           tr -d '\r\n' < v3/ext-style.b64 | base64 -d | gzip -dc > /tmp/v3-ext.css
