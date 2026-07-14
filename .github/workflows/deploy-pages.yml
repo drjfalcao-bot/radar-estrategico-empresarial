@@ -82,10 +82,12 @@ jobs:
           node --check cloud/calculator-core.js
           node --check cloud/active-case-context.js
           node --check cloud/scenario-lite.js
+          node --check cloud/scenario-live-refresh.js
           node tests/calculator-core.test.cjs
-          grep -q "2026.07.14-final.5" index.html
+          grep -q "2026.07.14-final.6" index.html
           grep -q "active-case-context.js" index.html
           grep -q "scenario-lite.js" index.html
+          grep -q "scenario-live-refresh.js" index.html
           grep -q "Primeiro reparcelamento — 10%" cloud/scenario-lite.js
           grep -q "Segundo ou posterior — 20%" cloud/scenario-lite.js
           grep -q "TIS — Transação Individual Simplificada" cloud/scenario-lite.js
@@ -93,6 +95,8 @@ jobs:
           grep -q "Cenário manual" cloud/scenario-lite.js
           grep -q "Separação por natureza" cloud/scenario-lite.js
           grep -q "digits(item.cnpj) === identity.cnpj" cloud/active-case-context.js
+          grep -q "radar:case-updated" cloud/scenario-live-refresh.js
+          grep -q "activeCaseTab" cloud/scenario-live-refresh.js
           ! grep -q "calculator-workbench.js" index.html
           ! grep -q "calculator-v3-loader.js" index.html
           ! grep -q "scenario-context-fix.js" index.html
