@@ -1,20 +1,25 @@
 (() => {
   'use strict';
 
-  const VERSION = '20260714-ext1';
+  const VERSION = '20260714-ext2';
   const STYLE_PATH = './v3/ext-style.b64';
-  const SCRIPT_PATHS = [
-    './v3/ext-core.b64',
-    './v3/ext-strategy.b64',
-    './v3/ext-documents.b64',
-    './v3/ext-calendar.b64',
-    './v3/ext-comparison.b64'
+  const SCRIPT_GROUPS = [
+    ['./v3/ext-core.b64'],
+    ['./v3/ext-strategy-00.b64', './v3/ext-strategy-01.b64'],
+    ['./v3/ext-documents-00.b64', './v3/ext-documents-01.b64', './v3/ext-documents-02.b64'],
+    ['./v3/ext-calendar.b64'],
+    ['./v3/ext-comparison.b64']
   ];
 
   async function fetchText(path) {
     const response = await fetch(`${path}?v=${VERSION}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`Falha ao carregar ${path}: ${response.status}`);
     return (await response.text()).trim();
+  }
+
+  async function fetchJoined(paths) {
+    const parts = await Promise.all(paths.map(fetchText));
+    return parts.join('');
   }
 
   function base64ToBytes(base64) {
@@ -35,6 +40,7 @@
     while (!document.getElementById('radar-v3-app') && Date.now() - started < 12000) {
       await new Promise(resolve => setTimeout(resolve, 80));
     }
+    if (!document.getElementById('radar-v3-app')) throw new Error('O motor principal não terminou de carregar.');
   }
 
   function injectScript(code, name) {
@@ -47,7 +53,7 @@
   async function boot() {
     const [styleBase64, ...scriptBase64] = await Promise.all([
       fetchText(STYLE_PATH),
-      ...SCRIPT_PATHS.map(fetchText)
+      ...SCRIPT_GROUPS.map(fetchJoined)
     ]);
     const [css, ...scripts] = await Promise.all([
       gunzip(styleBase64),
