@@ -1,12 +1,15 @@
 (() => {
   'use strict';
 
-  const VERSION = '20260714-ext2';
+  const VERSION = '20260714-ext3';
   const STYLE_PATH = './v3/ext-style.b64';
   const SCRIPT_GROUPS = [
     ['./v3/ext-core.b64'],
     ['./v3/ext-strategy-00.b64', './v3/ext-strategy-01.b64'],
-    ['./v3/ext-documents-00.b64', './v3/ext-documents-01.b64', './v3/ext-documents-02.b64'],
+    [
+      './v3/ext-doc2-00.b64', './v3/ext-doc2-01.b64', './v3/ext-doc2-02.b64', './v3/ext-doc2-03.b64', './v3/ext-doc2-04.b64',
+      './v3/ext-doc2-05.b64', './v3/ext-doc2-06.b64', './v3/ext-doc2-07.b64', './v3/ext-doc2-08.b64', './v3/ext-doc2-09.b64'
+    ],
     ['./v3/ext-calendar.b64'],
     ['./v3/ext-comparison.b64']
   ];
