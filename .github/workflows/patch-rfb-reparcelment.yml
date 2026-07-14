@@ -1,0 +1,95 @@
+name: Patch RFB Reparcelment Rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-rfb-reparcelment.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild and patch V3 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p validation
+          cat v3/app2-*.b64 | tr -d '\r\n' | base64 -d | gzip -dc > /tmp/radar-v3-app.js
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/radar-v3-app.js')
+          source = path.read_text(encoding='utf-8')
+
+          old_calc = """    const rfbAdj=minAdjusted(debtRFB,60,s.rfbMinPJ||500);
+    const rfbScenario={
+      id:'rfb',name:'Receita — parcelamento ordinário',eligible:debtRFB>0,
+      original:debtRFB,entry:0,reduction:0,total:debtRFB,months:rfbAdj.months,installment:rfbAdj.installment,
+      note:'Projeção nominal, sem desconto, sujeita à atualização aplicável.'
+    };"""
+
+          new_calc = """    const rfbReparcelment = l.reparcelment || 'nenhum';
+    const rfbEntryRate = rfbReparcelment==='primeiro' ? 0.10 : rfbReparcelment==='segundo_ou_mais' ? 0.20 : 0;
+    const rfbEntry = debtRFB*rfbEntryRate;
+    const rfbBalance = Math.max(0,debtRFB-rfbEntry);
+    const rfbRemainingTerm = rfbEntryRate>0 ? 59 : 60;
+    const rfbAdj=minAdjusted(rfbBalance,rfbRemainingTerm,s.rfbMinPJ||500);
+    const rfbScenario={
+      id:'rfb',
+      name:rfbReparcelment==='primeiro'?'Receita — primeiro reparcelamento (entrada de 10%)':rfbReparcelment==='segundo_ou_mais'?'Receita — segundo reparcelamento ou posterior (entrada de 20%)':'Receita — parcelamento ordinário',
+      eligible:debtRFB>0,
+      original:debtRFB,entry:rfbEntry,entryRate:rfbEntryRate*100,reduction:0,total:rfbEntry+rfbBalance,months:rfbAdj.months,installment:rfbAdj.installment,
+      note:rfbEntryRate>0?`Entrada mínima de ${Math.round(rfbEntryRate*100)}% considerada na formalização do reparcelamento. Saldo projetado em até ${rfbAdj.months} parcelas, sujeito à parcela mínima e à atualização aplicável.`:'Projeção nominal, sem desconto, sujeita à atualização aplicável.'
+    };"""
+
+          old_field = """        ${field('CAPAG','capag',l.capag,'select',{options:[['nao_sei','Não sabemos'],['A','A'],['B','B'],['C','C'],['D','D']]})}
+        ${field('Necessidade de certidão','certificateNeed',l.certificateNeed,'select',{options:[['baixa','Baixa'],['media','Média'],['alta','Alta']]})}"""
+
+          new_field = """        ${field('CAPAG','capag',l.capag,'select',{options:[['nao_sei','Não sabemos'],['A','A'],['B','B'],['C','C'],['D','D']]})}
+        ${field('Necessidade de certidão','certificateNeed',l.certificateNeed,'select',{options:[['baixa','Baixa'],['media','Média'],['alta','Alta']]})}
+        ${field('Reparcelamento na Receita','reparcelment',l.reparcelment||'nenhum','select',{options:[['nenhum','Não — parcelamento ordinário'],['primeiro','Sim — primeiro reparcelamento (entrada de 10%)'],['segundo_ou_mais','Sim — segundo reparcelamento ou posterior (entrada de 20%)']],help:'A entrada é calculada sobre o débito consolidado e destacada nos cenários.'})}"""
+
+          if source.count(old_calc) != 1:
+              raise SystemExit(f'Bloco de cálculo RFB não encontrado de forma única: {source.count(old_calc)}')
+          if source.count(old_field) != 1:
+              raise SystemExit(f'Bloco de formulário RFB não encontrado de forma única: {source.count(old_field)}')
+
+          source = source.replace(old_calc, new_calc).replace(old_field, new_field)
+          path.write_text(source, encoding='utf-8')
+          PY
+
+          node --check /tmp/radar-v3-app.js
+          grep -q "primeiro reparcelamento (entrada de 10%)" /tmp/radar-v3-app.js
+          grep -q "segundo reparcelamento ou posterior (entrada de 20%)" /tmp/radar-v3-app.js
+          grep -q "const rfbEntry = debtRFB\*rfbEntryRate" /tmp/radar-v3-app.js
+
+          APP_HASH=$(sha256sum /tmp/radar-v3-app.js | awk '{print $1}')
+          gzip -9 -n -c /tmp/radar-v3-app.js | base64 -w0 > /tmp/radar-v3-app.b64
+          rm -f v3/app4-*.b64
+          split -b 7000 -d -a 2 --additional-suffix=.b64 /tmp/radar-v3-app.b64 v3/app4-
+
+          {
+            echo "result=PASS"
+            echo "app_hash=$APP_HASH"
+            echo "rfb_ordinary_entry=0"
+            echo "rfb_first_reparcelment_entry=10"
+            echo "rfb_subsequent_reparcelment_entry=20"
+            echo "validated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > validation/rfb-patch-result.txt
+
+      - name: Commit patched package
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add v3/app4-*.b64 validation/rfb-patch-result.txt
+          git commit -m "build: apply RFB reparcelment entry rules [skip ci]"
+          git push
