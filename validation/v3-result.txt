@@ -1,5 +1,5 @@
-result=PASS
-commit=740859ca577a422bf7a9656a171e9c57829b3bf2
+result=FAIL
+commit=b9033d84612c883dcf9c0dd04b0f9f57f55e9be4
 app_hash=1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16
 expected_app_hash=1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16
 css_hash=9e9169f5c46d38dd67e47762cd3bed795295a0985a2ca7be0deb0e5a2fa32187
@@ -11,4 +11,33 @@ central_module_status=0
 report_module_status=0
 closing_module_status=0
 pricing_module_status=0
-validated_at=2026-07-14T14:02:55Z
+ext_core_hash=3a51ea58391fe59211c2c5b3d25b3662875155a9060e4e11e38aac04315d9e9b
+ext_strategy_hash=65c77630d096108cbe5d4319500fdcb2ad3315333a5fcf62066479d78de47782
+ext_documents_hash=25167a69d3f4d5747be6c34c0e98cac993cbeb7f95f89c4745c75b1403f6de1e
+ext_calendar_hash=f0e87739025f3d7d8ccf1b8bec78b77b7c6e87639f42e83e587446ce767a7fc2
+ext_comparison_hash=9766010b5642059af14fd12964c39364629cb2203853438bed40387b6c17cd96
+ext_css_hash=2e358b1ccccebcdb1dffadfec1dd779fe50801f1f80091df5acd05afb9d69724
+ext_profile_status=0
+ext_fronts_status=1
+ext_proposal_status=1
+ext_agenda_status=0
+ext_comparison_status=0
+validated_at=2026-07-14T14:03:56Z
+/tmp/v3-ext-strategy.js:43
+    'Plano plano de sneedimenir plaplardyção':'Do':'Examino.no çã
+                                                  ^
+
+SyntaxError: Unexpected token ':'
+    at wrapSafe (node:internal/modules/cjs/loader:1713:18)
+    at checkSyntax (node:internal/main/check_syntax:78:3)
+
+Node.js v22.23.1
+/tmp/v3-ext-documents.js:49
+  const valueOf = (lead, keys, fallback (lreferênc    showTad, -referOf = (ack ofback )wTad, -ueOf = (strtsc  ack.split('.'valueeeeelealu,
+                                         ^^^^^^^^^
+
+SyntaxError: missing ) after argument list
+    at wrapSafe (node:internal/modules/cjs/loader:1713:18)
+    at checkSyntax (node:internal/main/check_syntax:78:3)
+
+Node.js v22.23.1
