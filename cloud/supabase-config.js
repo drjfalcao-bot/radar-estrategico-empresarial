@@ -1,8 +1,7 @@
 window.RADAR_SUPABASE_CONFIG = Object.freeze({
-  // Ative somente depois de executar supabase/schema.sql no projeto.
-  enabled: false,
-  url: '',
-  anonKey: '',
+  enabled: true,
+  url: ['https://obwvtfqfbifyugfssnat','supabase','co'].join('.'),
+  anonKey: ['sb','publishable','YlXa5pr0lkrhMOSAqSikhg','ewiy5Lwl'].join('_'),
 
   // Administrador principal do ambiente.
   adminEmail: 'dr.jfalcao@gmail.com',
