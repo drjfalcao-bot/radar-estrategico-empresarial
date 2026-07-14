@@ -1,12 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = '20260714-v3';
+  const VERSION = '20260714-v3b';
   const APP_PARTS = [
-    './v3/app-gz-00.b64',
-    './v3/app-gz-01.b64',
-    './v3/app-gz-02.b64',
-    './v3/app-gz-03.b64'
+    './v3/app2-00.b64',
+    './v3/app2-01.b64',
+    './v3/app2-02.b64',
+    './v3/app2-03.b64',
+    './v3/app2-04.b64',
+    './v3/app2-05.b64',
+    './v3/app2-06.b64',
+    './v3/app2-07.b64'
   ];
   const STYLE_PARTS = ['./v3/style-gz.b64'];
   const appRoot = document.getElementById('app');
