@@ -1,0 +1,44 @@
+name: Apply final12 loader cache keys
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-final12-loader-cache.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update internal loader URLs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('cloud/auth-gate.js')
+          source = path.read_text(encoding='utf-8')
+          source = source.replace(
+              './v3-loader.js?v=20260714-v4-rfb-pgfn',
+              './v3-loader.js?v=20260715-final12-money-parser'
+          )
+          source = source.replace(
+              './v3-ext-loader.js?v=20260714-ext3',
+              './v3-ext-loader.js?v=20260715-final12-money-parser'
+          )
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Commit loader cache keys
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cloud/auth-gate.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: force final12 V3 loaders [skip ci]'
+          git push
