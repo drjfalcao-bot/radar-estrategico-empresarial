@@ -76,7 +76,7 @@ jobs:
           grep -q "create policy" supabase/schema.sql
           grep -q "approved users read owned leads admin reads all" supabase/schema.sql
 
-      - name: Validate lightweight scenarios and report release
+      - name: Validate simulations and report release
         run: |
           set -euo pipefail
           node --check cloud/calculator-core.js
@@ -86,18 +86,20 @@ jobs:
           node --check cloud/report-builder-loader.js
           node --check cloud/report-builder.js
           node tests/calculator-core.test.cjs
-          grep -q "2026.07.15-final.7" index.html
+          grep -q "2026.07.15-final.8" index.html
           grep -q "active-case-context.js" index.html
           grep -q "scenario-lite.js" index.html
           grep -q "scenario-live-refresh.js" index.html
           grep -q "Primeiro reparcelamento — 10%" cloud/scenario-lite.js
           grep -q "Segundo ou posterior — 20%" cloud/scenario-lite.js
-          grep -q "TIS — Transação Individual Simplificada" cloud/scenario-lite.js
-          grep -q "Pequeno valor" cloud/scenario-lite.js
-          grep -q "Cenário manual" cloud/scenario-lite.js
-          grep -q "Separação por natureza" cloud/scenario-lite.js
-          grep -q "digits(item.cnpj) === identity.cnpj" cloud/active-case-context.js
-          grep -q "radar:case-updated" cloud/scenario-live-refresh.js
+          grep -q "Migração RFB → PGFN" cloud/scenario-lite.js
+          grep -q "Transação Individual Simplificada" cloud/scenario-lite.js
+          grep -q "Passivo PGFN superior a R\$ 1 milhão" cloud/scenario-lite.js
+          grep -q "Projeção de custo e pagamento" cloud/scenario-lite.js
+          grep -q "Entrada mínima (%)" cloud/scenario-lite.js
+          grep -q "Premissas atualizadas automaticamente" cloud/scenario-lite.js
+          grep -q "Simulações" cloud/active-case-context.js
+          grep -q "simulation-workspace" cloud/scenario-live-refresh.js
           grep -q "report-builder-loader.js" cloud/scenario-live-refresh.js
           grep -q "Relatório autoconstruído" cloud/report-builder.js
           grep -q "Resumo das execuções" cloud/report-builder.js
