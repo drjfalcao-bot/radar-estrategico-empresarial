@@ -76,7 +76,7 @@ jobs:
           grep -q "create policy" supabase/schema.sql
           grep -q "approved users read owned leads admin reads all" supabase/schema.sql
 
-      - name: Validate simulations and report release
+      - name: Validate unified simulations and notebook flow
         run: |
           set -euo pipefail
           node --check cloud/calculator-core.js
@@ -84,10 +84,8 @@ jobs:
           node --check cloud/scenario-lite.js
           node --check cloud/scenario-live-refresh.js
           node --check cloud/simulations-consolidation.js
-          node --check cloud/report-builder-loader.js
-          node --check cloud/report-builder.js
           node tests/calculator-core.test.cjs
-          grep -q "2026.07.15-final.9" index.html
+          grep -q "2026.07.15-final.10" index.html
           grep -q "active-case-context.js" index.html
           grep -q "scenario-lite.js" index.html
           grep -q "scenario-live-refresh.js" index.html
@@ -102,14 +100,13 @@ jobs:
           grep -q "Premissas atualizadas automaticamente" cloud/scenario-lite.js
           grep -q "Redução estratégica potencial" cloud/simulations-consolidation.js
           grep -q "Potencial após migração da Receita" cloud/simulations-consolidation.js
-          grep -q "Cenários Automáticos" cloud/simulations-consolidation.js
-          grep -q "label === 'Relatório' || label === 'Proposta'" cloud/simulations-consolidation.js
-          grep -q "Simulações" cloud/active-case-context.js
-          grep -q "simulation-workspace" cloud/scenario-live-refresh.js
-          grep -q "report-builder-loader.js" cloud/scenario-live-refresh.js
-          grep -q "Relatório autoconstruído" cloud/report-builder.js
-          grep -q "Resumo das execuções" cloud/report-builder.js
-          grep -q "Identificação e assinatura fixas" cloud/report-builder.js
+          grep -q "LEGACY_TABS" cloud/simulations-consolidation.js
+          grep -q "goToNotebook" cloud/simulations-consolidation.js
+          grep -q "potentialReduction" cloud/simulations-consolidation.js
+          grep -q "updateStrategyScreen" cloud/simulations-consolidation.js
+          grep -q "O Caderno recebeu a fotografia atual" cloud/scenario-live-refresh.js
+          ! grep -q "report-builder-loader.js" cloud/scenario-live-refresh.js
+          ! grep -q "report-builder-loader.js" index.html
           ! grep -q "calculator-workbench.js" index.html
           ! grep -q "calculator-v3-loader.js" index.html
           ! grep -q "scenario-context-fix.js" index.html
