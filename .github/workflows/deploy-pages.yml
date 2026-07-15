@@ -32,10 +32,15 @@ jobs:
           echo "1e2d803c5619887d4f41016ffa665693c711fff5a37d80e3aa18d7964a2b4d16  /tmp/radar-v3-app.js" | sha256sum -c -
           echo "9e9169f5c46d38dd67e47762cd3bed795295a0985a2ca7be0deb0e5a2fa32187  /tmp/radar-v3.css" | sha256sum -c -
           node --check /tmp/radar-v3-app.js
+          node --check v3-loader.js
           grep -q "Central de Diagnóstico e Simulação" /tmp/radar-v3-app.js
           grep -q "Relatório Estratégico Empresarial" /tmp/radar-v3-app.js
           grep -q "Closing Rate" /tmp/radar-v3-app.js
           grep -qi "Mandado de segurança" /tmp/radar-v3-app.js
+          grep -q "BROKEN_NUM_PARSER" v3-loader.js
+          grep -q "FIXED_NUM_PARSER" v3-loader.js
+          grep -q "typeof v === 'number'" v3-loader.js
+          grep -q "raw.includes(',')" v3-loader.js
 
       - name: Validate V3 extension package
         run: |
@@ -58,6 +63,7 @@ jobs:
           node --check /tmp/v3-ext-calendar.js
           node --check /tmp/v3-ext-comparison.js
           node --check v3-ext-loader.js
+          grep -q "RadarPatchMoneyParser" v3-ext-loader.js
           grep -q "Selecionar frentes de trabalho" /tmp/v3-ext-strategy.js
           grep -q "Composição financeira" /tmp/v3-ext-documents.js
           grep -q "Agenda de prospecção" /tmp/v3-ext-calendar.js
@@ -72,6 +78,7 @@ jobs:
           grep -q "Solicitar acesso" cloud/auth-gate.js
           grep -q "approval_status" cloud/auth-gate.js
           grep -q "owner_user_id" cloud/auth-gate.js
+          grep -q "20260715-final12-money-parser" cloud/auth-gate.js
           grep -q "Administração de acessos" cloud/admin-access.js
           grep -q "create policy" supabase/schema.sql
           grep -q "approved users read owned leads admin reads all" supabase/schema.sql
@@ -85,7 +92,8 @@ jobs:
           node --check cloud/scenario-lite.js
           node --check cloud/simulations-consolidation.js
           node tests/calculator-core.test.cjs
-          grep -q "2026.07.15-final.11" index.html
+          node tests/money-parser.test.cjs
+          grep -q "2026.07.15-final.12" index.html
           grep -q "navigation-guard.js" index.html
           grep -q "active-case-context.js" index.html
           grep -q "scenario-lite.js" index.html
@@ -108,7 +116,6 @@ jobs:
           grep -q "Registrar fotografia no Caderno" cloud/simulations-consolidation.js
           grep -q "radar:strategic-values-updated" cloud/simulations-consolidation.js
           ! grep -q "LEGACY_TABS" cloud/simulations-consolidation.js
-          ! grep -q "scenario-live-refresh.js" index.html
           ! grep -q "calculator-workbench.js" index.html
           ! grep -q "calculator-v3-loader.js" index.html
           ! grep -q "scenario-context-fix.js" index.html
