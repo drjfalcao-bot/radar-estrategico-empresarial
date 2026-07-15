@@ -28,7 +28,7 @@
   function pageIdentity() {
     const header = document.querySelector('.case-head');
     const source = header?.textContent || document.querySelector('main')?.textContent || '';
-    const cnpj = digits(source.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/)?.[0] || '');
+    const cnpj = digits(source.match(/\d{2}\.?\d{3}\.?\d{3}\/\d{4}-?\d{2}/)?.[0] || '');
     const title = header?.querySelector('h1')?.textContent?.trim() || '';
     return { cnpj, title };
   }
@@ -62,8 +62,8 @@
   }
 
   document.addEventListener('click', (event) => {
-    const target = event.target.closest('button,a');
-    if (target?.textContent?.trim() === 'Cenários') {
+    const target = event.target.closest('button,a,[role="tab"]');
+    if (['Cenários', 'Simulações'].includes(target?.textContent?.trim())) {
       syncActiveCase();
       setTimeout(syncActiveCase, 80);
     }
