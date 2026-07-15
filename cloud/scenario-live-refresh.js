@@ -8,18 +8,18 @@
   }
 
   function activeCaseTab() {
-    const labels = new Set(['Perfil', 'Análise acompanhada', 'Cenários', 'Estratégia', 'Relatório', 'Proposta', 'Caderno']);
+    const labels = new Set(['Perfil', 'Análise acompanhada', 'Cenários', 'Simulações', 'Estratégia', 'Relatório', 'Proposta', 'Plano de Trabalho', 'Caderno']);
     const candidates = [...document.querySelectorAll('button, a, [role="tab"]')]
       .filter((node) => labels.has(text(node)));
     return candidates.find((node) =>
       node.classList.contains('active') ||
       node.classList.contains('is-active') ||
       node.getAttribute('aria-selected') === 'true'
-    ) || candidates.find((node) => text(node) === 'Cenários') || null;
+    ) || candidates.find((node) => ['Cenários', 'Simulações'].includes(text(node))) || null;
   }
 
   function notifyCaseUpdated(leadId) {
-    const detail = { leadId, source: 'scenario-calculator', updatedAt: new Date().toISOString() };
+    const detail = { leadId, source: 'simulation-workspace', updatedAt: new Date().toISOString() };
     window.dispatchEvent(new CustomEvent('radar:lead-updated', { detail }));
     window.dispatchEvent(new CustomEvent('radar:case-updated', { detail }));
     document.dispatchEvent(new CustomEvent('radar:lead-updated', { detail }));
@@ -39,27 +39,25 @@
 
   function refreshVisibleCase() {
     const ctx = window.RadarScenarioLite?.getContext?.();
-    const leadId = ctx?.lead?.id || '';
+    const leadId = ctx?.lead?.id || ctx?.l?.id || '';
     notifyCaseUpdated(leadId);
     sessionStorage.setItem(APPLIED_FLAG, String(Date.now()));
 
     const tab = activeCaseTab();
-    if (tab) tab.click();
+    if (tab && !['Cenários', 'Simulações'].includes(text(tab))) tab.click();
 
     setTimeout(() => {
       window.RadarScenarioLite?.mount?.();
       const status = document.querySelector('#radar-scenario-lite [data-status]');
-      if (status) status.textContent = 'Cenário aplicado. Valores e telas do caso foram atualizados.';
+      if (status) status.textContent = 'Simulação registrada. Relatório e caderno receberam a fotografia atual.';
     }, 160);
-
-    setTimeout(() => window.RadarScenarioLite?.mount?.(), 420);
   }
 
   function loadReportBuilder() {
     if (document.getElementById('radar-report-builder-loader')) return;
     const script = document.createElement('script');
     script.id = 'radar-report-builder-loader';
-    script.src = './cloud/report-builder-loader.js?v=20260715-final7';
+    script.src = './cloud/report-builder-loader.js?v=20260715-final8';
     script.defer = true;
     document.body.appendChild(script);
   }
