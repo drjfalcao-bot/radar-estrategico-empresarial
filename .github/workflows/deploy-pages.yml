@@ -83,13 +83,15 @@ jobs:
           node --check cloud/active-case-context.js
           node --check cloud/scenario-lite.js
           node --check cloud/scenario-live-refresh.js
+          node --check cloud/simulations-consolidation.js
           node --check cloud/report-builder-loader.js
           node --check cloud/report-builder.js
           node tests/calculator-core.test.cjs
-          grep -q "2026.07.15-final.8" index.html
+          grep -q "2026.07.15-final.9" index.html
           grep -q "active-case-context.js" index.html
           grep -q "scenario-lite.js" index.html
           grep -q "scenario-live-refresh.js" index.html
+          grep -q "simulations-consolidation.js" index.html
           grep -q "Primeiro reparcelamento — 10%" cloud/scenario-lite.js
           grep -q "Segundo ou posterior — 20%" cloud/scenario-lite.js
           grep -q "Migração RFB → PGFN" cloud/scenario-lite.js
@@ -98,6 +100,10 @@ jobs:
           grep -q "Projeção de custo e pagamento" cloud/scenario-lite.js
           grep -q "Entrada mínima (%)" cloud/scenario-lite.js
           grep -q "Premissas atualizadas automaticamente" cloud/scenario-lite.js
+          grep -q "Redução estratégica potencial" cloud/simulations-consolidation.js
+          grep -q "Potencial após migração da Receita" cloud/simulations-consolidation.js
+          grep -q "Cenários Automáticos" cloud/simulations-consolidation.js
+          grep -q "label === 'Relatório' || label === 'Proposta'" cloud/simulations-consolidation.js
           grep -q "Simulações" cloud/active-case-context.js
           grep -q "simulation-workspace" cloud/scenario-live-refresh.js
           grep -q "report-builder-loader.js" cloud/scenario-live-refresh.js
