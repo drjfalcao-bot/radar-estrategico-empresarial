@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '20260714-v3b';
+  const VERSION = '20260715-final12-money-parser';
   const APP_PARTS = [
     './v3/app2-00.b64',
     './v3/app2-01.b64',
@@ -14,6 +14,25 @@
   ];
   const STYLE_PARTS = ['./v3/style-gz.b64'];
   const appRoot = document.getElementById('app');
+
+  const BROKEN_NUM_PARSER = "const num = v => Number(String(v ?? '').replace(/\\./g,'').replace(',','.').replace(/[^0-9.-]/g,'')) || 0;";
+  const FIXED_NUM_PARSER = `const num = v => {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+    const raw = String(v ?? '').trim();
+    if (!raw) return 0;
+    const normalized = raw.includes(',')
+      ? raw.replace(/\\./g,'').replace(',','.').replace(/[^0-9.-]/g,'')
+      : raw.replace(/[^0-9.-]/g,'');
+    return Number(normalized) || 0;
+  };`;
+
+  function patchMoneyParser(code) {
+    const source = String(code || '');
+    if (!source.includes(BROKEN_NUM_PARSER)) return source;
+    return source.split(BROKEN_NUM_PARSER).join(FIXED_NUM_PARSER);
+  }
+
+  window.RadarPatchMoneyParser = patchMoneyParser;
 
   function showLoading() {
     if (!appRoot) return;
@@ -52,7 +71,9 @@
   async function boot() {
     showLoading();
     const [appBase64, styleBase64] = await Promise.all([fetchJoined(APP_PARTS), fetchJoined(STYLE_PARTS)]);
-    const [appCode, css] = await Promise.all([gunzip(appBase64), gunzip(styleBase64)]);
+    const [rawAppCode, css] = await Promise.all([gunzip(appBase64), gunzip(styleBase64)]);
+    const appCode = patchMoneyParser(rawAppCode);
+    if (appCode === rawAppCode) throw new Error('O parser monetário esperado não foi encontrado no pacote V3.');
     window.__V3_CSS__ = css;
     const style = document.createElement('style');
     style.id = 'radar-v3-style';
