@@ -8,7 +8,7 @@
   }
 
   function activeCaseTab() {
-    const labels = new Set(['Perfil', 'Análise acompanhada', 'Cenários', 'Simulações', 'Estratégia', 'Relatório', 'Proposta', 'Plano de Trabalho', 'Caderno']);
+    const labels = new Set(['Perfil', 'Análise acompanhada', 'Cenários', 'Simulações', 'Estratégia', 'Caderno']);
     const candidates = [...document.querySelectorAll('button, a, [role="tab"]')]
       .filter((node) => labels.has(text(node)));
     return candidates.find((node) =>
@@ -49,17 +49,8 @@
     setTimeout(() => {
       window.RadarScenarioLite?.mount?.();
       const status = document.querySelector('#radar-scenario-lite [data-status]');
-      if (status) status.textContent = 'Simulação registrada. Relatório e caderno receberam a fotografia atual.';
+      if (status) status.textContent = 'Simulação registrada. O Caderno recebeu a fotografia atual.';
     }, 160);
-  }
-
-  function loadReportBuilder() {
-    if (document.getElementById('radar-report-builder-loader')) return;
-    const script = document.createElement('script');
-    script.id = 'radar-report-builder-loader';
-    script.src = './cloud/report-builder-loader.js?v=20260715-final8';
-    script.defer = true;
-    document.body.appendChild(script);
   }
 
   document.addEventListener('click', (event) => {
@@ -67,6 +58,4 @@
     if (!button) return;
     setTimeout(refreshVisibleCase, 60);
   }, true);
-
-  loadReportBuilder();
 })();
