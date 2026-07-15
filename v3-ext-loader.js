@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '20260714-ext3';
+  const VERSION = '20260715-final12-money-parser';
   const STYLE_PATH = './v3/ext-style.b64';
   const SCRIPT_GROUPS = [
     ['./v3/ext-core.b64'],
@@ -49,7 +49,10 @@
   function injectScript(code, name) {
     const script = document.createElement('script');
     script.dataset.radarExtension = name;
-    script.textContent = `${code}\n//# sourceURL=${name}.js`;
+    const patched = typeof window.RadarPatchMoneyParser === 'function'
+      ? window.RadarPatchMoneyParser(code)
+      : code;
+    script.textContent = `${patched}\n//# sourceURL=${name}.js`;
     document.body.appendChild(script);
   }
 
