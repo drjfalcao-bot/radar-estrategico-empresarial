@@ -76,20 +76,26 @@ jobs:
           grep -q "create policy" supabase/schema.sql
           grep -q "approved users read owned leads admin reads all" supabase/schema.sql
 
-      - name: Validate unified simulations and notebook flow
+      - name: Validate cleaned simulations and notebook flow
         run: |
           set -euo pipefail
+          node --check cloud/navigation-guard.js
           node --check cloud/calculator-core.js
           node --check cloud/active-case-context.js
           node --check cloud/scenario-lite.js
-          node --check cloud/scenario-live-refresh.js
           node --check cloud/simulations-consolidation.js
           node tests/calculator-core.test.cjs
-          grep -q "2026.07.15-final.10" index.html
+          grep -q "2026.07.15-final.11" index.html
+          grep -q "navigation-guard.js" index.html
           grep -q "active-case-context.js" index.html
           grep -q "scenario-lite.js" index.html
-          grep -q "scenario-live-refresh.js" index.html
           grep -q "simulations-consolidation.js" index.html
+          ! grep -q "scenario-live-refresh.js" index.html
+          ! grep -q "report-builder-loader.js" index.html
+          grep -q "MutationObserver" cloud/navigation-guard.js
+          grep -q "LEGACY_LABELS" cloud/navigation-guard.js
+          grep -q "node.remove()" cloud/navigation-guard.js
+          grep -q "routeToNotebook" cloud/navigation-guard.js
           grep -q "Primeiro reparcelamento — 10%" cloud/scenario-lite.js
           grep -q "Segundo ou posterior — 20%" cloud/scenario-lite.js
           grep -q "Migração RFB → PGFN" cloud/scenario-lite.js
@@ -97,16 +103,12 @@ jobs:
           grep -q "Passivo PGFN superior a R\$ 1 milhão" cloud/scenario-lite.js
           grep -q "Projeção de custo e pagamento" cloud/scenario-lite.js
           grep -q "Entrada mínima (%)" cloud/scenario-lite.js
-          grep -q "Premissas atualizadas automaticamente" cloud/scenario-lite.js
           grep -q "Redução estratégica potencial" cloud/simulations-consolidation.js
           grep -q "Potencial após migração da Receita" cloud/simulations-consolidation.js
-          grep -q "LEGACY_TABS" cloud/simulations-consolidation.js
-          grep -q "goToNotebook" cloud/simulations-consolidation.js
-          grep -q "potentialReduction" cloud/simulations-consolidation.js
-          grep -q "updateStrategyScreen" cloud/simulations-consolidation.js
-          grep -q "O Caderno recebeu a fotografia atual" cloud/scenario-live-refresh.js
-          ! grep -q "report-builder-loader.js" cloud/scenario-live-refresh.js
-          ! grep -q "report-builder-loader.js" index.html
+          grep -q "Registrar fotografia no Caderno" cloud/simulations-consolidation.js
+          grep -q "radar:strategic-values-updated" cloud/simulations-consolidation.js
+          ! grep -q "LEGACY_TABS" cloud/simulations-consolidation.js
+          ! grep -q "scenario-live-refresh.js" index.html
           ! grep -q "calculator-workbench.js" index.html
           ! grep -q "calculator-v3-loader.js" index.html
           ! grep -q "scenario-context-fix.js" index.html
