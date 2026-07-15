@@ -44,9 +44,7 @@
     sessionStorage.setItem(APPLIED_FLAG, String(Date.now()));
 
     const tab = activeCaseTab();
-    if (tab) {
-      tab.click();
-    }
+    if (tab) tab.click();
 
     setTimeout(() => {
       window.RadarScenarioLite?.mount?.();
@@ -57,9 +55,20 @@
     setTimeout(() => window.RadarScenarioLite?.mount?.(), 420);
   }
 
+  function loadReportBuilder() {
+    if (document.getElementById('radar-report-builder-loader')) return;
+    const script = document.createElement('script');
+    script.id = 'radar-report-builder-loader';
+    script.src = './cloud/report-builder-loader.js?v=20260715-final7';
+    script.defer = true;
+    document.body.appendChild(script);
+  }
+
   document.addEventListener('click', (event) => {
     const button = event.target.closest('#radar-scenario-lite [data-apply]');
     if (!button) return;
     setTimeout(refreshVisibleCase, 60);
   }, true);
+
+  loadReportBuilder();
 })();
