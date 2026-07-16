@@ -71,6 +71,10 @@
   }
 
   function currentContext() {
+    const strategic = window.RadarStrategicCalculator?.getContext?.();
+    if (strategic?.key && strategic?.db && (strategic?.lead || strategic?.l)) {
+      return { key: strategic.key, db: strategic.db, lead: strategic.lead || strategic.l };
+    }
     const scenario = window.RadarScenarioLite?.getContext?.();
     if (scenario?.key && scenario?.db && (scenario?.lead || scenario?.l)) {
       return { key: scenario.key, db: scenario.db, lead: scenario.lead || scenario.l };
