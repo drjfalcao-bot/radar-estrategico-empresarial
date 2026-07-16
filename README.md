@@ -2,7 +2,7 @@
 
 Sistema de apoio à decisão, análise acompanhada e pré-venda consultiva para cenários fiscais, financeiros, processuais e de Reforma Tributária.
 
-**Release estável:** `2026.07.16-premium.4`
+**Release estável:** `2026.07.16-premium.5`
 
 ## Objetivo
 
@@ -30,7 +30,8 @@ O produto não substitui o CRM pós-venda. Após a assinatura, o caso pode ser e
 - estratégia e frentes de trabalho editáveis;
 - plano de atuação derivado das frentes escolhidas;
 - construtor de relatório por blocos;
-- construtor de proposta editável no Caderno, com serviço, descrição, custo e pagamento;
+- construtor de proposta editável no Caderno, com serviço, descrição, custo e métodos de pagamento;
+- boleto e cartão sugeridos por padrão, com desconto, parcelamento e condições totalmente editáveis;
 - estruturação de garantia disponível exclusivamente nas opções da proposta;
 - precificação com referência, percentual e valor final editável;
 - assinatura profissional vinculada ao perfil do usuário;
