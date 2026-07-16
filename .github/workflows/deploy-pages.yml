@@ -95,7 +95,7 @@ jobs:
           node tests/calculator-core.test.cjs
           node tests/money-parser.test.cjs
           node tests/strategic-calculator-engine.test.cjs
-          grep -q "2026.07.16-premium.1" index.html
+          grep -q "2026.07.16-premium.2" index.html
           grep -q "navigation-guard.js" index.html
           grep -q "active-case-context.js" index.html
           grep -q "strategic-calculator-engine.js" index.html
@@ -118,6 +118,10 @@ jobs:
           grep -q "Retirando os débitos da Receita" cloud/strategic-calculator.js
           grep -q "Registrar fotografia no Caderno" cloud/strategic-calculator.js
           grep -q "Com a estratégia certa, o potencial de redução é de" cloud/strategic-calculator.js
+          grep -q "diagnosticFinal" cloud/strategic-calculator.js
+          grep -q "calculateRiskRatings" cloud/strategic-calculator-engine.js
+          grep -q "reportRows" cloud/strategic-calculator-engine.js
+          grep -q "Formalizar o escopo técnico" cloud/strategic-calculator-engine.js
           grep -q "data-save-advanced" cloud/strategic-calculator.js
           grep -q "strict" cloud/strategic-calculator-engine.js
           grep -q "remainingMonths" cloud/strategic-calculator-engine.js
