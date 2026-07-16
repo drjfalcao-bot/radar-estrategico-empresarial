@@ -146,6 +146,13 @@ assert.deepEqual(rows.slice(0, 2).map((row) => row.id), ['migration', 'pgfn']);
 assert.equal(rows.at(-1).id, 'strategic_total');
 assert.equal(rows.at(-1).reduction, 525000);
 
+const rowsWithoutGuarantee = engine.reportRows({
+  output: reportOutput,
+  state: { pgfnEntryMonths: 12 },
+  selections: ['guarantee']
+});
+assert.equal(rowsWithoutGuarantee.length, 0, 'garantia deve ficar exclusivamente no construtor de propostas');
+
 const diagnostic = engine.buildDiagnostic({
   lead: riskLead,
   output: reportOutput,
@@ -158,6 +165,9 @@ const diagnostic = engine.buildDiagnostic({
 assert.equal(diagnostic.potentialReduction, 525000);
 assert.equal(diagnostic.ratings.fiscal, ratings.fiscal);
 assert.match(diagnostic.summary, /Os indicadores apontam necessidade estratégica/);
+assert.match(diagnostic.summary, /Risco de/);
+assert.doesNotMatch(diagnostic.summary, /RT-Score|Financial Rate|Fiscal Rate|Collection Rate/);
+assert.equal(diagnostic.ratingLabels.rt, 'Risco de exposição à Reforma Tributária');
 assert.match(diagnostic.conclusion, /formalizar a contratação do escopo técnico/);
 assert.ok(diagnostic.fronts.includes('Migração RFB para PGFN'));
 

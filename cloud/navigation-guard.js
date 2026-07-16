@@ -3,8 +3,9 @@
 
   const APP_ID = 'app';
   const STYLE_ID = 'radar-navigation-guard-style';
-  const LEGACY_LABELS = new Set(['Relatório', 'Proposta']);
+  const LEGACY_LABELS = new Set(['Estratégia', 'Relatório', 'Proposta']);
   const LEGACY_HEADINGS = [
+    'Estratégia Recomendada',
     'Relatório Estratégico Empresarial',
     'Gerador de Proposta Financeira',
     'PROPOSTA DE ATUAÇÃO ESTRATÉGICA'
