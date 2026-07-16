@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const VERSION = '2026.07.16-premium.1';
+  const VERSION = '2026.07.16-premium.2';
 
   function number(value) {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -24,6 +24,205 @@
     const parsed = Math.round(number(value));
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   };
+
+  const riskBand = (value) => number(value) >= 75 ? 'Crítico' : number(value) >= 55 ? 'Elevado' : number(value) >= 30 ? 'Atenção' : 'Controlado';
+  const valueMap = (value, map, fallback = 50) => map[value] ?? fallback;
+
+  function leadDebt(lead) {
+    const rfb = Math.max(0, number(String(lead?.rfbDebt ?? '').trim() !== '' ? lead.rfbDebt : lead?.rfbTotal));
+    const pgfn = ['pgfnSimple', 'pgfnPrev', 'pgfnTrib', 'pgfnOther'].reduce((sum, key) => sum + Math.max(0, number(lead?.[key])), 0);
+    return { rfb: round2(rfb), pgfn: round2(pgfn), total: round2(rfb + pgfn) };
+  }
+
+  function daysSince(value, now = new Date()) {
+    if (!value) return 0;
+    const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+    const current = new Date(`${now.toISOString().slice(0, 10)}T12:00:00`);
+    if (!Number.isFinite(date.getTime())) return 0;
+    return Math.max(0, Math.floor((current - date) / 86400000));
+  }
+
+  function calculateRiskRatings(lead, now = new Date()) {
+    const debt = leadDebt(lead).total;
+    const rt = clamp(
+      number(lead?.b2bShare) * 0.14 +
+      valueMap(lead?.marginLevel, { baixa: 82, media: 52, alta: 28 }) * 0.14 +
+      clamp(number(lead?.receivableDays) * 1.3, 10, 95) * 0.12 +
+      valueMap(lead?.taxCashDependence, { baixa: 25, moderada: 55, alta: 85 }) * 0.16 +
+      valueMap(lead?.priceFlexibility, { alta: 25, media: 55, baixa: 85 }) * 0.12 +
+      valueMap(lead?.longContracts, { sim: 78, nao: 30, nao_sei: 55 }) * 0.08 +
+      valueMap(lead?.taxBenefits, { sim: 72, nao: 32, nao_sei: 50 }) * 0.06 +
+      valueMap(lead?.erpReadiness, { boa: 22, parcial: 55, baixa: 85 }) * 0.07 +
+      valueMap(lead?.accountingReadiness, { boa: 22, parcial: 55, baixa: 85 }) * 0.05 +
+      valueMap(lead?.splitReadiness, { boa: 20, parcial: 55, baixa: 88 }) * 0.06,
+      0, 100
+    );
+    const revenue = number(lead?.revenueMonthly) || ({
+      ate_100: 75000, ate_500: 300000, ate_2m: 1200000, ate_10m: 5500000, acima_10m: 12000000
+    }[lead?.revenueBand] || 0);
+    const debtPressure = revenue ? clamp((debt / (revenue * 12)) * 100, 0, 100) : (debt ? 65 : 20);
+    const financial = clamp(
+      debtPressure * 0.28 +
+      valueMap(lead?.cashReserve, { disponivel: 18, parcial: 48, depende_parcelamento: 70, sem_reserva: 92, nao_informado: 55 }) * 0.24 +
+      valueMap(lead?.workingCapital, { forte: 18, moderado: 48, pressionado: 76, critico: 94 }) * 0.18 +
+      valueMap(lead?.cashPressure, { baixa: 20, moderada: 48, elevada: 76, critica: 94 }) * 0.18 +
+      valueMap(lead?.canSupportEntry, { sim: 20, parcial: 50, nao: 88, nao_sei: 58 }) * 0.12,
+      0, 100
+    );
+    const fiscal = clamp(
+      (debt ? Math.min(90, 20 + Math.log10(Math.max(debt, 1)) * 8) : 12) * 0.28 +
+      (lead?.impediment ? 88 : 28) * 0.16 +
+      (lead?.omissions ? 80 : 25) * 0.12 +
+      valueMap(lead?.capag, { A: 35, B: 40, C: 58, D: 78, nao_sei: 55 }) * 0.12 +
+      valueMap(lead?.cadastralStatus, { ativa: 20, inapta: 82, suspensa: 72, baixada: 88 }) * 0.16 +
+      valueMap(lead?.certificateNeed, { baixa: 28, media: 55, alta: 82 }) * 0.08 +
+      (lead?.installmentActive ? 45 : 60) * 0.08,
+      0, 100
+    );
+    let collection = 10;
+    if (lead?.execution) collection += 20;
+    if (lead?.citation) collection += 16;
+    if (lead?.block) collection += 24;
+    if (lead?.seizure) collection += 20;
+    if (lead?.expropriation) collection += 30;
+    if (number(lead?.processCount) > 3) collection += 8;
+    if (number(lead?.processCount) > 10) collection += 8;
+    if (lead?.exposedAssets) collection += 7;
+    if (lead?.priorBlocks) collection += 7;
+    if (lead?.guarantee) collection -= 8;
+    collection = clamp(collection, 0, 100);
+    const need = clamp(rt * 0.20 + financial * 0.22 + fiscal * 0.25 + collection * 0.33, 0, 100);
+    let closing = 15;
+    closing += valueMap(lead?.problemRecognition, { baixo: 0, medio: 10, alto: 20 }, 10);
+    closing += valueMap(lead?.documentWillingness, { baixo: 0, medio: 8, alto: 16 }, 8);
+    closing += valueMap(lead?.intentToSolve, { baixo: 0, medio: 12, alto: 24 }, 12);
+    closing += valueMap(lead?.decisionMaker, { sim: 15, nao: 0, nao_sei: 6 }, 6);
+    closing += valueMap(lead?.cashReserve, { disponivel: 12, parcial: 8, depende_parcelamento: 4, sem_reserva: -10, nao_informado: 0 }, 0);
+    closing += valueMap(lead?.canSupportEntry, { sim: 8, parcial: 4, nao: -8, nao_sei: 0 }, 0);
+    closing += valueMap(lead?.decisionHorizon, { ate_7: 10, ate_30: 7, ate_90: 3, sem_prazo: -3, nao_informado: 0 }, 0);
+    closing += Math.round(need * 0.12);
+    const inactive = daysSince(lead?.lastMovementAt, now);
+    if (inactive > 21) closing -= 20;
+    else if (inactive > 14) closing -= 12;
+    else if (inactive > 7) closing -= 6;
+    if (lead?.stage === 'proposta') closing += 8;
+    if (lead?.stage === 'negociacao') closing += 12;
+    if (lead?.stage === 'assinatura') closing += 18;
+    if (lead?.stage === 'ganho') closing = 100;
+    if (lead?.stage === 'perdido') closing = 0;
+    if (String(lead?.overrides?.closingScore ?? '').trim() !== '') closing = clamp(lead.overrides.closingScore, 0, 100);
+    closing = clamp(closing, 0, 100);
+    const opportunity = String(lead?.overrides?.opportunityScore ?? '').trim() !== ''
+      ? clamp(lead.overrides.opportunityScore, 0, 100)
+      : clamp(need * 0.7 + closing * 0.3, 0, 100);
+    return {
+      rt: Math.round(rt), financial: Math.round(financial), fiscal: Math.round(fiscal),
+      collection: Math.round(collection), need: Math.round(need),
+      closing: Math.round(closing), opportunity: Math.round(opportunity)
+    };
+  }
+
+  function reportRows(input) {
+    const output = input?.output || {};
+    const selected = new Set(input?.selections || []);
+    const rows = [];
+    if (selected.has('rfb') && output.rfb?.debt) rows.push({
+      id: 'rfb', source: 'strategic-calculator', name: 'Receita Federal — cenário convencional',
+      original: round2(output.rfb.debt), entry: round2(output.rfb.entry), reduction: 0,
+      installment: round2(output.rfb.installment), term: `${output.rfb.months} parcelas`,
+      note: 'Parcelamento ou reparcelamento sem redução projetada.'
+    });
+    if (selected.has('migration') && output.migration?.debt) rows.push({
+      id: 'migration', source: 'strategic-calculator', name: 'RFB — ação estratégica de migração',
+      original: round2(output.migration.debt), entry: round2(output.migration.entry),
+      reduction: round2(output.migration.reduction), installment: round2(output.migration.phaseTwoInstallment),
+      term: `${output.migration.entryMonths} parcelas de entrada + ${output.migration.balanceMonths} do saldo`,
+      note: 'Cenário condicionado à migração, inscrição e elegibilidade na PGFN.'
+    });
+    if (selected.has('pgfn') && output.pgfn?.debt) rows.push({
+      id: 'pgfn', source: 'strategic-calculator', name: 'PGFN — transação por natureza',
+      original: round2(output.pgfn.debt), entry: round2(output.pgfn.entry),
+      reduction: round2(output.pgfn.reduction), installment: round2(output.pgfn.phaseTwoInstallment),
+      term: `${input?.state?.pgfnEntryMonths || 12} parcelas de entrada + saldo por natureza`,
+      note: 'Prazos separados para débitos previdenciários e demais naturezas.'
+    });
+    if (selected.has('tis') && output.tis?.eligible) rows.push({
+      id: 'tis', source: 'strategic-calculator', name: 'TIS — negociação individual simplificada',
+      original: round2(output.tis.basis), entry: 0, reduction: round2(output.tis.reduction),
+      installment: round2(output.tis.bands?.[0]?.installment), term: `${output.tis.totalTerm} meses em faixas escalonadas`,
+      note: output.tis.strategicEligible ? 'Cenário condicionado à migração da Receita para a PGFN.' : 'Cenário calculado sobre o passivo PGFN atual.'
+    });
+    if (selected.has('guarantee') && output.guarantee) rows.push({
+      id: 'guarantee', source: 'strategic-calculator', name: 'Estruturação de garantia',
+      original: round2(output.guarantee.operationBase), entry: round2(output.guarantee.entry), reduction: 0,
+      installment: round2(output.guarantee.installment), term: `${output.guarantee.months} parcelas`,
+      note: `Custo total projetado: ${round2(output.guarantee.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
+    });
+    const potential = selected.has('tis') ? number(output.tis?.reduction) : rows.reduce((sum, row) => sum + number(row.reduction), 0);
+    const highest = Math.max(0, ...rows.map((row) => number(row.reduction)));
+    if (potential > highest + 0.01) rows.push({
+      id: 'strategic_total', source: 'strategic-calculator', name: 'Resultado estratégico consolidado',
+      original: round2(output.totalDebt), entry: round2(rows.reduce((sum, row) => sum + number(row.entry), 0)),
+      reduction: round2(potential), installment: 0, term: 'Composição dos cenários selecionados',
+      note: `Com a estratégia certa, o potencial de redução é de ${round2(potential).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
+    });
+    return rows;
+  }
+
+  function buildDiagnostic(input) {
+    const lead = input?.lead || {};
+    const ratings = input?.ratings || calculateRiskRatings(lead);
+    const output = input?.output || {};
+    const selections = input?.selections || [];
+    const rows = input?.rows || reportRows(input);
+    const potentialReduction = selections.includes('tis')
+      ? number(output.tis?.reduction)
+      : rows.filter((row) => row.id !== 'strategic_total').reduce((sum, row) => sum + number(row.reduction), 0);
+    const inactionRate = clamp(input?.inactionRate ?? 12, 0, 100);
+    const currentDebt = number(output.totalDebt) || leadDebt(lead).total;
+    const inactionTotal = round2(currentDebt * (1 + inactionRate / 100));
+    const money = (value) => round2(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const selectedNames = rows.filter((row) => row.id !== 'strategic_total').map((row) => row.name);
+    let title = 'Diagnóstico e organização estratégica do passivo';
+    if (selections.includes('tis')) title = 'Regularização com enquadramento potencial em TIS';
+    else if (selections.includes('migration')) title = 'Migração do passivo da Receita e negociação estratégica na PGFN';
+    else if (selections.includes('pgfn')) title = 'Transação do passivo inscrito com estruturação financeira';
+    else if (selections.includes('guarantee')) title = 'Regularização coordenada com estruturação de garantia';
+    const ordered = [
+      ['Collection Rate', ratings.collection], ['Fiscal Rate', ratings.fiscal],
+      ['Financial Rate', ratings.financial], ['RT-Score', ratings.rt]
+    ].sort((a, b) => b[1] - a[1]);
+    const mainRisk = ordered[0];
+    const reductionText = potentialReduction > 0
+      ? `Os cenários selecionados indicam potencial estimado de redução de ${money(potentialReduction)}, reduzindo o saldo projetado para ${money(Math.max(0, currentDebt - potentialReduction))}.`
+      : 'Os cenários selecionados priorizam organização do fluxo, previsibilidade e adequação do pagamento, sem redução financeira confirmada nesta etapa.';
+    const summary = `Os indicadores apontam necessidade estratégica ${riskBand(ratings.need).toLowerCase()}, com maior atenção em ${mainRisk[0]} (${mainRisk[1]}/100 — ${riskBand(mainRisk[1])}). O passivo atualmente informado é de ${money(currentDebt)} e, sem atuação, a exposição nominal projetada alcança ${money(inactionTotal)}. ${reductionText} A estratégia indicada é ${title.toLowerCase()}, condicionada à validação documental e à elegibilidade aplicável.`;
+    const fronts = [];
+    if (ratings.rt >= 55) fronts.push('Adequação à Reforma Tributária', 'Revisão de caixa, preço e contratos');
+    if (currentDebt > 0) fronts.push('Mapeamento e gestão do passivo');
+    if (selections.includes('migration')) fronts.push('Migração RFB para PGFN');
+    if (selections.includes('pgfn')) fronts.push('Transação PGFN por natureza');
+    if (selections.includes('tis')) fronts.push('Validação e estruturação da TIS');
+    if (selections.includes('guarantee')) fronts.push('Estruturação de garantia');
+    if (ratings.collection >= 55) fronts.push('Acompanhamento da cobrança e estratégia defensiva');
+    if (ratings.financial >= 55) fronts.push('Estruturação compatível com o caixa');
+    const plan = [
+      'Confirmar os débitos, processos, documentos e premissas utilizados no diagnóstico.',
+      'Validar a elegibilidade e as restrições de cada cenário selecionado.',
+      'Definir a ordem de implementação, o fluxo de entrada e o cronograma de atuação.',
+      'Formalizar o escopo técnico da estratégia recomendada e iniciar as medidas aprovadas.',
+      'Acompanhar a negociação até a implementação e revisar o cenário sempre que houver atualização.'
+    ];
+    const conclusion = `O diagnóstico demonstra que a manutenção do cenário atual preserva riscos e pode elevar a exposição financeira. A estratégia recomendada cria uma rota objetiva para organizar o passivo${potentialReduction > 0 ? ` e buscar redução potencial de ${money(potentialReduction)}` : ''}. Para transformar a projeção em resultado, a próxima etapa é formalizar a contratação do escopo técnico, validar a documentação e iniciar a implementação das medidas selecionadas.`;
+    return {
+      generatedAt: new Date().toISOString(), ratings, ratingBands: Object.fromEntries(Object.entries(ratings).map(([key, value]) => [key, riskBand(value)])),
+      currentDebt: round2(currentDebt), inactionRate: round2(inactionRate), inactionTotal,
+      selectedScenarios: selections, selectedScenarioNames: selectedNames,
+      potentialReduction: round2(potentialReduction), projectedBalance: round2(Math.max(0, currentDebt - potentialReduction)),
+      title, summary, fronts: [...new Set(fronts)], plan, conclusion,
+      nextStep: 'Formalizar o escopo técnico e iniciar a validação documental da estratégia selecionada.'
+    };
+  }
 
   function minimumAdjusted(principal, months, minimum) {
     const amount = Math.max(0, number(principal));
@@ -191,6 +390,11 @@
     number,
     round2,
     clamp,
+    riskBand,
+    leadDebt,
+    calculateRiskRatings,
+    reportRows,
+    buildDiagnostic,
     calculateRfb,
     calculateNature,
     calculatePgfn,
