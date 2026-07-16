@@ -139,11 +139,16 @@
     return true;
   }
 
-  function openReport() {
+  function openReport(attempt = 0) {
     if (window.RadarDocumentBuilder?.open) {
       window.RadarDocumentBuilder.open('report');
       restrictReportBuilder();
       setTimeout(() => translateRiskLabels(document.getElementById('radar-doc-builder') || document), 50);
+      return;
+    }
+    if (attempt < 30) {
+      if (attempt === 0) window.RadarExt?.toast?.('Carregando o construtor do relatório...');
+      setTimeout(() => openReport(attempt + 1), 150);
       return;
     }
     window.RadarExt?.toast?.('O construtor do relatório ainda está carregando. Tente novamente em instantes.', 'warn');
@@ -231,16 +236,41 @@
     return [...previous, ...suggested.filter((service) => service.category === 'guarantee' || !previousCategories.has(service.category))];
   }
 
+  function defaultPaymentMethods() {
+    return [
+      {
+        id: 'boleto', enabled: true, name: 'Boleto bancário', discount: 0,
+        installments: 6, interestFree: false, description: 'Pagamento por boleto, sem desconto.'
+      },
+      {
+        id: 'credito', enabled: true, name: 'Cartão de crédito', discount: 10,
+        installments: 12, interestFree: true, description: 'Pagamento por cartão de crédito com desconto comercial.'
+      }
+    ];
+  }
+
+  function normalizePaymentMethod(method, index = 0) {
+    return {
+      id: method?.id || uid('payment'),
+      enabled: method?.enabled !== false,
+      name: text(method?.name) || `Forma de pagamento ${index + 1}`,
+      discount: Math.min(100, Math.max(0, number(method?.discount))),
+      installments: Math.max(1, Math.min(60, number(method?.installments) || 1)),
+      interestFree: Boolean(method?.interestFree),
+      description: String(method?.description || '').trim()
+    };
+  }
+
   function proposalState(lead, db) {
     const stored = lead.commercialProposal || {};
+    const paymentMethods = Array.isArray(stored.paymentMethods)
+      ? stored.paymentMethods.map(normalizePaymentMethod)
+      : defaultPaymentMethods();
     return {
       title: stored.title || 'Proposta de Atuação Estratégica',
       services: Array.isArray(stored.services) && stored.services.length ? stored.services : initialProposalServices(lead, db),
-      paymentMode: stored.paymentMode || 'entrada_parcelas',
-      entry: number(stored.entry),
-      installments: Math.max(1, number(stored.installments) || 6),
-      successRate: number(stored.successRate),
-      paymentTerms: stored.paymentTerms || lead.proposalConfig?.paymentTerms || '',
+      paymentMethods,
+      paymentTerms: stored.paymentTerms || '',
       validity: stored.validity || lead.proposalConfig?.validity || '10 dias',
       notes: stored.notes || lead.proposalConfig?.notes || ''
     };
@@ -250,26 +280,52 @@
     return `<article class="nch-service-row" data-service-id="${esc(service.id)}"><label class="nch-service-check"><input type="checkbox" data-service-included ${service.included ? 'checked' : ''}><span></span></label><div class="nch-service-main"><div class="nch-service-title"><input data-service-name value="${esc(service.name)}"><button data-remove-service title="Remover">×</button></div><textarea data-service-description rows="3">${esc(service.description)}</textarea>${service.reason ? `<small>${esc(service.reason)}</small>` : ''}</div><div class="nch-service-price"><label><span>Custo</span><input data-service-cost type="number" min="0" step="50" value="${number(service.cost).toFixed(2)}"></label><label><span>Cobrança</span><select data-service-billing><option value="unico" ${service.billing === 'unico' ? 'selected' : ''}>Valor único</option><option value="mensal" ${service.billing === 'mensal' ? 'selected' : ''}>Mensal</option><option value="exito" ${service.billing === 'exito' ? 'selected' : ''}>Êxito</option></select></label><input type="hidden" data-service-category value="${esc(service.category)}"></div></article>`;
   }
 
+  function paymentMethodRow(method) {
+    return `<article class="nch-payment-method" data-payment-id="${esc(method.id)}"><label class="nch-service-check nch-payment-check" title="Exibir esta opção na proposta"><input type="checkbox" data-payment-enabled ${method.enabled ? 'checked' : ''}><span></span></label><div class="nch-payment-method-main"><input data-payment-name value="${esc(method.name)}" aria-label="Nome da forma de pagamento"><textarea data-payment-description rows="2" placeholder="Descrição complementar — opcional">${esc(method.description)}</textarea></div><div class="nch-payment-method-terms"><label><span>Desconto (%)</span><input data-payment-discount type="number" min="0" max="100" step="0.5" value="${number(method.discount)}"></label><label><span>Até quantas vezes</span><input data-payment-installments type="number" min="1" max="60" value="${number(method.installments)}"></label><label class="nch-interest-free"><input data-payment-interest-free type="checkbox" ${method.interestFree ? 'checked' : ''}><span>Sem juros</span></label><button data-remove-payment title="Remover forma de pagamento">×</button></div></article>`;
+  }
+
+  function paymentMethodValues(method, total) {
+    const discount = Math.min(100, Math.max(0, number(method.discount)));
+    const installments = Math.max(1, Math.min(60, number(method.installments) || 1));
+    const finalValue = Math.max(0, total * (1 - discount / 100));
+    return { discount, installments, finalValue, installmentValue: finalValue / installments };
+  }
+
+  function paymentMethodText(method, total) {
+    const values = paymentMethodValues(method, total);
+    const discountText = values.discount > 0
+      ? `${values.discount.toLocaleString('pt-BR')}% de desconto, total de ${money(values.finalValue)}`
+      : `sem desconto, total de ${money(values.finalValue)}`;
+    const interestText = method.interestFree ? ' sem juros' : '';
+    return `${method.name}: ${discountText}, em até ${values.installments}x de ${money(values.installmentValue)}${interestText}.`;
+  }
+
   function paymentText(state, total) {
-    if (state.paymentTerms) return state.paymentTerms;
-    if (state.paymentMode === 'avista') return `Pagamento à vista no valor de ${money(total)}.`;
-    if (state.paymentMode === 'mensalidade') return `${state.installments} mensalidades, conforme cronograma de atuação.`;
-    if (state.paymentMode === 'exito') return `Honorários de êxito de ${number(state.successRate).toLocaleString('pt-BR')}%, conforme resultado e base definidos no contrato.`;
-    if (state.paymentMode === 'entrada_parcelas') {
-      const remainder = Math.max(0, total - number(state.entry));
-      return `Entrada de ${money(state.entry)} e saldo em ${state.installments} parcelas de ${money(remainder / state.installments)}.`;
-    }
-    return 'Condições de pagamento a definir entre as partes.';
+    const methods = (state.paymentMethods || []).filter((method) => method.enabled);
+    const methodTerms = methods.map((method) => paymentMethodText(method, total));
+    if (state.paymentTerms) methodTerms.push(`Condições complementares: ${state.paymentTerms}`);
+    return methodTerms.join(' ') || 'Nenhuma forma de pagamento foi habilitada para esta proposta.';
+  }
+
+  function paymentMethodsPreview(state, total) {
+    const methods = (state.paymentMethods || []).filter((method) => method.enabled);
+    if (!methods.length) return '<p>Nenhuma forma de pagamento habilitada.</p>';
+    return `<div class="nch-preview-payments">${methods.map((method) => {
+      const values = paymentMethodValues(method, total);
+      return `<article><div><strong>${esc(method.name)}</strong><b>${money(values.finalValue)}</b></div><p>${values.discount > 0 ? `${values.discount.toLocaleString('pt-BR')}% de desconto` : 'Sem desconto'} · até ${values.installments}x de ${money(values.installmentValue)}${method.interestFree ? ' sem juros' : ''}</p>${method.description ? `<small>${esc(method.description)}</small>` : ''}</article>`;
+    }).join('')}</div>`;
   }
 
   function proposalPreview(lead, state) {
     const included = state.services.filter((service) => service.included);
     const total = included.reduce((sum, service) => sum + number(service.cost), 0);
-    return `<article class="proposal-preview nch-proposal-preview" id="nch-proposal-preview"><header><div><span>Radar Estratégico Empresarial</span><h1>PROPOSTA DE ATUAÇÃO ESTRATÉGICA</h1></div><div><small>EMPRESA</small><strong>${esc(lead.companyName || 'Empresa não informada')}</strong><span>${esc(lead.cnpj || '')}</span></div></header><section><h2>Contexto e objetivo</h2><p>${esc(lead.manualStrategySummary || lead.diagnosticFinal?.summary || 'Atuação estruturada a partir do diagnóstico e das prioridades identificadas para o caso.')}</p></section><section><h2>Serviços indicados</h2><div class="nch-preview-services">${included.map((service) => `<div><span><strong>${esc(service.name)}</strong><small>${esc(service.description)}</small></span><b>${money(service.cost)}${service.billing === 'mensal' ? '/mês' : service.billing === 'exito' ? ' · êxito' : ''}</b></div>`).join('') || '<p>Nenhum serviço selecionado.</p>'}</div></section><section class="nch-preview-total"><span>Investimento indicado</span><strong>${money(total)}</strong></section><section><h2>Forma de pagamento</h2><p>${esc(paymentText(state, total))}</p><p><strong>Validade:</strong> ${esc(state.validity)}</p>${state.notes ? `<p>${esc(state.notes)}</p>` : ''}</section><footer>A contratação formaliza o escopo, as responsabilidades e o início da validação documental da estratégia selecionada.</footer></article>`;
+    return `<article class="proposal-preview nch-proposal-preview" id="nch-proposal-preview"><header><div><span>Radar Estratégico Empresarial</span><h1>PROPOSTA DE ATUAÇÃO ESTRATÉGICA</h1></div><div><small>EMPRESA</small><strong>${esc(lead.companyName || 'Empresa não informada')}</strong><span>${esc(lead.cnpj || '')}</span></div></header><section><h2>Contexto e objetivo</h2><p>${esc(lead.manualStrategySummary || lead.diagnosticFinal?.summary || 'Atuação estruturada a partir do diagnóstico e das prioridades identificadas para o caso.')}</p></section><section><h2>Serviços indicados</h2><div class="nch-preview-services">${included.map((service) => `<div><span><strong>${esc(service.name)}</strong><small>${esc(service.description)}</small></span><b>${money(service.cost)}${service.billing === 'mensal' ? '/mês' : service.billing === 'exito' ? ' · êxito' : ''}</b></div>`).join('') || '<p>Nenhum serviço selecionado.</p>'}</div></section><section class="nch-preview-total"><span>Investimento indicado</span><strong>${money(total)}</strong></section><section class="nch-preview-payment-section"><h2>Métodos de pagamento disponíveis</h2>${paymentMethodsPreview(state, total)}${state.paymentTerms ? `<p class="nch-preview-payment-notes"><strong>Condições complementares:</strong> ${esc(state.paymentTerms)}</p>` : ''}<p class="nch-preview-validity"><strong>Validade:</strong> ${esc(state.validity)}</p>${state.notes ? `<p class="nch-preview-payment-notes">${esc(state.notes)}</p>` : ''}</section><footer>A contratação formaliza o escopo, as responsabilidades e o início da validação documental da estratégia selecionada.</footer></article>`;
   }
 
   function proposalHtml(lead, state) {
-    return `<section class="nch-modal wide"><header><div><span class="nch-kicker">Montagem da proposta</span><h2>Serviços indicados, valores e pagamento</h2><p>As sugestões vêm do diagnóstico. Tudo permanece editável antes da apresentação ao cliente.</p></div><button data-nch-close>×</button></header><div class="nch-proposal-layout"><section class="nch-proposal-editor"><label class="nch-field"><span>Título da proposta</span><input name="proposalTitle" value="${esc(state.title)}"></label><div class="nch-services-head"><div><h3>Serviços da proposta</h3><p>Marque o que entra e ajuste livremente descrição e custo.</p></div><button class="nch-secondary" data-add-service>+ Serviço</button></div><div class="nch-services-list">${state.services.map(serviceRow).join('')}</div><section class="nch-payment"><div><h3>Forma de pagamento</h3><p>Defina a composição financeira depois do escopo.</p></div><div class="nch-payment-grid"><label><span>Modelo</span><select name="paymentMode"><option value="avista" ${state.paymentMode === 'avista' ? 'selected' : ''}>À vista</option><option value="entrada_parcelas" ${state.paymentMode === 'entrada_parcelas' ? 'selected' : ''}>Entrada + parcelas</option><option value="mensalidade" ${state.paymentMode === 'mensalidade' ? 'selected' : ''}>Mensalidade</option><option value="exito" ${state.paymentMode === 'exito' ? 'selected' : ''}>Êxito</option><option value="personalizado" ${state.paymentMode === 'personalizado' ? 'selected' : ''}>Personalizado</option></select></label><label><span>Entrada</span><input name="paymentEntry" type="number" min="0" step="50" value="${number(state.entry).toFixed(2)}"></label><label><span>Parcelas / meses</span><input name="paymentInstallments" type="number" min="1" max="60" value="${state.installments}"></label><label><span>Êxito (%)</span><input name="paymentSuccess" type="number" min="0" max="100" step="0.5" value="${state.successRate}"></label></div><label class="nch-field"><span>Condição por extenso — opcional</span><textarea name="paymentTerms" rows="3" placeholder="Se preenchido, este texto substitui a composição automática.">${esc(state.paymentTerms)}</textarea></label><div class="nch-payment-grid"><label><span>Validade</span><input name="proposalValidity" value="${esc(state.validity)}"></label></div><label class="nch-field"><span>Observações</span><textarea name="proposalNotes" rows="3">${esc(state.notes)}</textarea></label></section></section><aside class="nch-proposal-preview-host">${proposalPreview(lead, state)}</aside></div><footer><button class="nch-secondary" data-nch-close>Fechar</button><button class="nch-primary" data-save-proposal>Salvar proposta no Caderno</button></footer></section>`;
+    const total = state.services.filter((service) => service.included).reduce((sum, service) => sum + number(service.cost), 0);
+    const paymentReady = total > 0;
+    return `<section class="nch-modal wide"><header><div><span class="nch-kicker">Montagem da proposta</span><h2>Serviços indicados, valores e pagamento</h2><p>As sugestões vêm do diagnóstico. Tudo permanece editável antes da apresentação ao cliente.</p></div><button data-nch-close>×</button></header><div class="nch-proposal-layout"><section class="nch-proposal-editor"><label class="nch-field"><span>Título da proposta</span><input name="proposalTitle" value="${esc(state.title)}"></label><div class="nch-services-head"><div><h3>Serviços da proposta</h3><p>Marque o que entra e ajuste livremente descrição e custo.</p></div><button class="nch-secondary" data-add-service>+ Serviço</button></div><div class="nch-services-list">${state.services.map(serviceRow).join('')}</div><section class="nch-payment ${paymentReady ? 'is-ready' : 'is-locked'}" data-payment-section><div class="nch-payment-heading"><div><h3>Métodos de pagamento disponíveis</h3><p>Habilite as opções que aparecerão no fim da proposta financeira.</p></div><button class="nch-secondary" data-add-payment ${paymentReady ? '' : 'disabled'}>+ Método</button></div><p class="nch-payment-status" data-payment-status>${paymentReady ? 'Pagamento habilitado para o investimento selecionado.' : 'Informe um valor em ao menos um serviço selecionado para habilitar o pagamento.'}</p><fieldset data-payment-controls ${paymentReady ? '' : 'disabled'}><div class="nch-payment-methods">${state.paymentMethods.map(paymentMethodRow).join('')}</div><label class="nch-field"><span>Condições complementares — opcional</span><textarea name="paymentTerms" rows="3" placeholder="Ex.: cobrança mediante aprovação, vencimento ou condição específica.">${esc(state.paymentTerms)}</textarea></label><div class="nch-payment-grid compact"><label><span>Validade da proposta</span><input name="proposalValidity" value="${esc(state.validity)}"></label></div><label class="nch-field"><span>Observações</span><textarea name="proposalNotes" rows="3">${esc(state.notes)}</textarea></label></fieldset></section></section><aside class="nch-proposal-preview-host">${proposalPreview(lead, state)}</aside></div><footer><button class="nch-secondary" data-nch-close>Fechar</button><button class="nch-primary" data-save-proposal>Salvar proposta no Caderno</button></footer></section>`;
   }
 
   function collectProposal(root) {
@@ -283,21 +339,46 @@
       billing: row.querySelector('[data-service-billing]')?.value || 'unico',
       reason: text(row.querySelector('.nch-service-main small')?.textContent)
     }));
+    const paymentMethods = [...root.querySelectorAll('.nch-payment-method')].map((row, index) => normalizePaymentMethod({
+      id: row.dataset.paymentId || uid('payment'),
+      enabled: Boolean(row.querySelector('[data-payment-enabled]')?.checked),
+      name: row.querySelector('[data-payment-name]')?.value,
+      discount: row.querySelector('[data-payment-discount]')?.value,
+      installments: row.querySelector('[data-payment-installments]')?.value,
+      interestFree: Boolean(row.querySelector('[data-payment-interest-free]')?.checked),
+      description: row.querySelector('[data-payment-description]')?.value
+    }, index));
     return {
       title: text(root.querySelector('[name="proposalTitle"]')?.value) || 'Proposta de Atuação Estratégica',
       services,
-      paymentMode: root.querySelector('[name="paymentMode"]')?.value || 'personalizado',
-      entry: Math.max(0, number(root.querySelector('[name="paymentEntry"]')?.value)),
-      installments: Math.max(1, number(root.querySelector('[name="paymentInstallments"]')?.value) || 1),
-      successRate: Math.max(0, number(root.querySelector('[name="paymentSuccess"]')?.value)),
+      paymentMethods,
       paymentTerms: String(root.querySelector('[name="paymentTerms"]')?.value || '').trim(),
       validity: text(root.querySelector('[name="proposalValidity"]')?.value) || '10 dias',
       notes: String(root.querySelector('[name="proposalNotes"]')?.value || '').trim()
     };
   }
 
+  function syncPaymentAvailability(root, state) {
+    const total = state.services.filter((service) => service.included).reduce((sum, service) => sum + number(service.cost), 0);
+    const ready = total > 0;
+    const section = root.querySelector('[data-payment-section]');
+    const controls = root.querySelector('[data-payment-controls]');
+    const add = root.querySelector('[data-add-payment]');
+    if (section) {
+      section.classList.toggle('is-ready', ready);
+      section.classList.toggle('is-locked', !ready);
+    }
+    if (controls) controls.disabled = !ready;
+    if (add) add.disabled = !ready;
+    const status = root.querySelector('[data-payment-status]');
+    if (status) status.textContent = ready
+      ? 'Pagamento habilitado para o investimento selecionado.'
+      : 'Informe um valor em ao menos um serviço selecionado para habilitar o pagamento.';
+  }
+
   function refreshProposalPreview(root, lead) {
     const state = collectProposal(root);
+    syncPaymentAvailability(root, state);
     const host = root.querySelector('.nch-proposal-preview-host');
     if (host) host.innerHTML = proposalPreview(lead, state);
   }
@@ -309,6 +390,7 @@
     const included = state.services.filter((service) => service.included);
     const total = included.reduce((sum, service) => sum + number(service.cost), 0);
     const terms = paymentText(state, total);
+    const paymentInstallments = Math.max(1, ...state.paymentMethods.filter((method) => method.enabled).map((method) => method.installments));
     ctx.lead.proposalConfig = {
       ...(ctx.lead.proposalConfig || {}),
       title: state.title,
@@ -318,7 +400,7 @@
       services: included.map((service) => ({
         id: service.id, type: service.category === 'defense' ? 'defense' : 'custom',
         category: service.category, description: service.name, detail: service.description,
-        rate: 0, months: service.billing === 'mensal' ? state.installments : 1,
+        rate: 0, months: service.billing === 'mensal' ? paymentInstallments : 1,
         base: service.cost, finalValue: service.cost
       }))
     };
@@ -347,9 +429,25 @@
         refreshProposalPreview(body, ctx.lead);
         return;
       }
+      const removePayment = event.target.closest('[data-remove-payment]');
+      if (removePayment) {
+        removePayment.closest('.nch-payment-method')?.remove();
+        refreshProposalPreview(body, ctx.lead);
+        return;
+      }
       if (event.target.closest('[data-add-service]')) {
         const list = body.querySelector('.nch-services-list');
         list.insertAdjacentHTML('beforeend', serviceRow(serviceSuggestion(uid('service'), 'custom', 'Novo serviço', 'Descreva o escopo deste serviço.', 0, true, 'Serviço adicionado manualmente.')));
+        refreshProposalPreview(body, ctx.lead);
+        return;
+      }
+      if (event.target.closest('[data-add-payment]')) {
+        const list = body.querySelector('.nch-payment-methods');
+        const method = normalizePaymentMethod({
+          id: uid('payment'), enabled: true, name: 'Nova forma de pagamento', discount: 0,
+          installments: 1, interestFree: false, description: ''
+        });
+        list.insertAdjacentHTML('beforeend', paymentMethodRow(method));
         refreshProposalPreview(body, ctx.lead);
         return;
       }
@@ -372,6 +470,11 @@
     bindProposal(node, ctx);
   }
 
+  function buildProposalDocument(lead) {
+    const db = window.RadarExt?.readDB?.() || { settings: {} };
+    return proposalPreview(lead, proposalState(lead, db));
+  }
+
   function schedule() {
     if (scheduled) return;
     scheduled = true;
@@ -392,5 +495,5 @@
   window.addEventListener('load', schedule);
   [800, 1500, 2600].forEach((delay) => setTimeout(schedule, delay));
 
-  window.RadarNotebookCommercialHub = { mount: schedule, openStrategy, openReport, openProposal, restrictReportBuilder, translateRiskLabels };
+  window.RadarNotebookCommercialHub = { mount: schedule, openStrategy, openReport, openProposal, buildProposalDocument, restrictReportBuilder, translateRiskLabels };
 })();

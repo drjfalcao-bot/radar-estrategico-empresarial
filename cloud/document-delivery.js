@@ -229,6 +229,28 @@
     return null;
   }
 
+  function documentFromHtml(html) {
+    const template = document.createElement('template');
+    template.innerHTML = String(html || '').trim();
+    return template.content.firstElementChild || null;
+  }
+
+  function storedDocument(type, lead) {
+    if (type === 'proposal' && window.RadarNotebookCommercialHub?.buildProposalDocument) {
+      return documentFromHtml(window.RadarNotebookCommercialHub.buildProposalDocument(lead));
+    }
+    if (type !== 'report' || !window.RadarDocumentBuilder?.buildReport) return null;
+    const defaults = {
+      title: 'Relatório Estratégico Empresarial',
+      showExecutive: true, showCompanyProfile: true,
+      showRT: true, showFinancial: true, showFiscal: true, showCollection: true, showNeed: false,
+      showCurrent: true, showInaction: true, showTarget: true,
+      showSimulations: true, showReduction: true, showStrategy: true,
+      showFronts: true, showPlan: true, showNextSteps: true, conclusion: ''
+    };
+    return documentFromHtml(window.RadarDocumentBuilder.buildReport(lead, { ...defaults, ...(lead.reportConfig || {}) }));
+  }
+
   function printableClone(source) {
     const clone = source.cloneNode(true);
     clone.querySelectorAll('button,input,textarea,select,.no-print,[data-internal-only],#radar-document-delivery').forEach((node) => node.remove());
@@ -275,7 +297,7 @@
   }
 
   async function createPdf(type, lead) {
-    const source = findDocument(type);
+    const source = findDocument(type) || storedDocument(type, lead);
     if (!source) throw new Error(type === 'proposal' ? 'Atualize a proposta no Caderno antes de gerar o PDF.' : 'Construa ou atualize o relatório no Caderno antes de gerar o PDF.');
     await loadPdfLibrary();
     const filename = documentFilename(type, lead);
