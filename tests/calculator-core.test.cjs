@@ -1,6 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
-const core = require('../cloud/calculator-core.js');
+const loadedCore = require('../cloud/calculator-core.js');
+const core = loadedCore.calculateRfb ? loadedCore : globalThis.RadarCalculatorCore;
 
 const ordinary = core.calculateRfb({ debt: 100000, mode: 'nenhum', totalTerm: 60, minimum: 500 });
 assert.equal(ordinary.entry, 0);
