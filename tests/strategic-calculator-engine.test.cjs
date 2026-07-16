@@ -82,4 +82,83 @@ assert.equal(guarantee.entry, 7500);
 assert.equal(guarantee.installment, 2375);
 assert.equal(guarantee.total, 152800);
 
+const riskLead = {
+  rfbDebt: 400000,
+  pgfnSimple: 500000,
+  pgfnPrev: 100000,
+  pgfnTrib: 150000,
+  pgfnOther: 50000,
+  revenueMonthly: 120000,
+  b2bShare: 80,
+  marginLevel: 'baixa',
+  receivableDays: 45,
+  taxCashDependence: 'alta',
+  priceFlexibility: 'baixa',
+  longContracts: 'sim',
+  taxBenefits: 'sim',
+  erpReadiness: 'baixa',
+  accountingReadiness: 'parcial',
+  splitReadiness: 'baixa',
+  cashReserve: 'depende_parcelamento',
+  workingCapital: 'pressionado',
+  cashPressure: 'elevada',
+  canSupportEntry: 'parcial',
+  impediment: true,
+  omissions: true,
+  capag: 'D',
+  cadastralStatus: 'ativa',
+  certificateNeed: 'alta',
+  execution: true,
+  citation: true,
+  block: true,
+  processCount: 4,
+  problemRecognition: 'alto',
+  documentWillingness: 'alto',
+  intentToSolve: 'alto',
+  decisionMaker: 'sim',
+  decisionHorizon: 'ate_7',
+  lastMovementAt: '2026-07-16',
+  stage: 'estrategia',
+  overrides: {}
+};
+assert.equal(engine.leadDebt(riskLead).total, 1200000, 'deve incluir também a natureza tributária da PGFN');
+const ratings = engine.calculateRiskRatings(riskLead, new Date('2026-07-16T12:00:00Z'));
+for (const key of ['rt', 'financial', 'fiscal', 'collection', 'need', 'closing', 'opportunity']) {
+  assert.ok(ratings[key] >= 0 && ratings[key] <= 100, `${key} deve ser persistido entre 0 e 100`);
+}
+assert.ok(ratings.fiscal >= 55);
+assert.ok(ratings.collection >= 55);
+
+const reportOutput = {
+  totalDebt: 1200000,
+  rfb: engine.calculateRfb({ debt: 400000, mode: 'nenhum', totalTerm: 60, minimum: 500 }),
+  pgfn,
+  migration,
+  tis: afterMigration,
+  guarantee
+};
+const rows = engine.reportRows({
+  output: reportOutput,
+  state: { pgfnEntryMonths: 12 },
+  selections: ['migration', 'pgfn']
+});
+assert.deepEqual(rows.slice(0, 2).map((row) => row.id), ['migration', 'pgfn']);
+assert.equal(rows.at(-1).id, 'strategic_total');
+assert.equal(rows.at(-1).reduction, 525000);
+
+const diagnostic = engine.buildDiagnostic({
+  lead: riskLead,
+  output: reportOutput,
+  state: { pgfnEntryMonths: 12 },
+  selections: ['migration', 'pgfn'],
+  rows,
+  ratings,
+  inactionRate: 12
+});
+assert.equal(diagnostic.potentialReduction, 525000);
+assert.equal(diagnostic.ratings.fiscal, ratings.fiscal);
+assert.match(diagnostic.summary, /Os indicadores apontam necessidade estratégica/);
+assert.match(diagnostic.conclusion, /formalizar a contratação do escopo técnico/);
+assert.ok(diagnostic.fronts.includes('Migração RFB para PGFN'));
+
 console.log(`strategic-calculator-engine ${engine.VERSION}: PASS`);
