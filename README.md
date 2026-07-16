@@ -2,13 +2,13 @@
 
 Sistema de apoio à decisão, análise acompanhada e pré-venda consultiva para cenários fiscais, financeiros, processuais e de Reforma Tributária.
 
-**Release estável:** `2026.07.14-final.1`
+**Release estável:** `2026.07.16-premium.3`
 
 ## Objetivo
 
 O Radar organiza o caminho entre a identificação da empresa e a assinatura do contrato:
 
-`Perfil empresarial → Análise acompanhada → Ratings → Simulações → Estratégia → Relatório → Proposta → Funil`
+`Perfil empresarial → Análise acompanhada → Riscos → Simulações → Caderno (estratégia, relatório e proposta) → Funil`
 
 O produto não substitui o CRM pós-venda. Após a assinatura, o caso pode ser encaminhado ao fluxo operacional externo.
 
@@ -21,8 +21,8 @@ O produto não substitui o CRM pós-venda. Após a assinatura, o caso pode ser e
 - Central de Diagnóstico e Simulação;
 - perfil estratégico empresarial;
 - análise acompanhada para reuniões;
-- RT-Score, Financial Rate, Fiscal Rate e Collection Rate;
-- Need Rate, Opportunity Rate e Closing Rate internos;
+- risco de exposição à Reforma Tributária, risco de caixa, risco fiscal e risco de cobrança;
+- necessidade estratégica, potencial da oportunidade e probabilidade de fechamento para uso interno;
 - ranking de oportunidades;
 - funil de pré-venda com arraste;
 - caderno automático e anotações manuais;
@@ -30,7 +30,8 @@ O produto não substitui o CRM pós-venda. Após a assinatura, o caso pode ser e
 - estratégia e frentes de trabalho editáveis;
 - plano de atuação derivado das frentes escolhidas;
 - construtor de relatório por blocos;
-- construtor de proposta por blocos;
+- construtor de proposta editável no Caderno, com serviço, descrição, custo e pagamento;
+- estruturação de garantia disponível exclusivamente nas opções da proposta;
 - precificação com referência, percentual e valor final editável;
 - assinatura profissional vinculada ao perfil do usuário;
 - relatório sem honorários por padrão;
