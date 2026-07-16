@@ -45,9 +45,16 @@
       #${PANEL_ID} .rdd-status.success{background:#eaf8ef;color:#17653a}
       #${PANEL_ID} .rdd-status.error{background:#fff0f2;color:#9f1731}
       #${PANEL_ID} .rdd-status.warning{background:#fff7df;color:#765700}
-      .radar-pdf-stage{position:fixed!important;left:-100000px!important;top:0!important;width:794px!important;min-height:1123px!important;background:#fff!important;color:#0b2540!important;padding:28px!important;box-sizing:border-box!important;z-index:-1!important}
+      .radar-pdf-stage{position:fixed!important;left:-100000px!important;top:0!important;width:900px!important;min-height:1123px!important;background:#fff!important;color:#0b2540!important;padding:0!important;box-sizing:border-box!important;z-index:-1!important}
       .radar-pdf-stage *{box-sizing:border-box}
       .radar-pdf-stage button,.radar-pdf-stage input,.radar-pdf-stage select,.radar-pdf-stage textarea,.radar-pdf-stage .no-print,.radar-pdf-stage #${PANEL_ID}{display:none!important}
+      .radar-pdf-stage .generated-document{width:900px!important;max-width:900px!important;margin:0!important;box-shadow:none!important}
+      .radar-pdf-stage .doc-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+      .radar-pdf-stage .doc-ratings{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+      .radar-pdf-stage .doc-scenarios,.radar-pdf-stage .ext-comparison-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+      .radar-pdf-stage .doc-section{break-inside:auto!important;page-break-inside:auto!important}
+      .radar-pdf-stage .doc-section>h2{break-after:avoid!important;page-break-after:avoid!important}
+      .radar-pdf-stage .doc-grid>div,.radar-pdf-stage .doc-ratings>article,.radar-pdf-stage .doc-scenario,.radar-pdf-stage .doc-highlight,.radar-pdf-stage tr{break-inside:avoid!important;page-break-inside:avoid!important}
       @media(max-width:760px){#${PANEL_ID} .rdd-grid{grid-template-columns:1fr}#${PANEL_ID} label.rdd-wide{grid-column:auto}#${PANEL_ID} .rdd-head{display:block}#${PANEL_ID} .rdd-badge{display:inline-block;margin-top:10px}}
       @media print{#${PANEL_ID}{display:none!important}}
     `;
@@ -320,9 +327,9 @@
         margin: [9, 8, 9, 8],
         filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 980 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1200 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'], avoid: ['article', 'section', '.panel', 'table', 'tr'] }
+        pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.doc-grid > div', '.doc-ratings > article', '.doc-scenario', '.doc-highlight', '.proposal-services > article', '.nch-preview-payments > article'] }
       };
       const blob = await window.html2pdf().set(options).from(stage).toPdf().outputPdf('blob');
       return { blob, filename };
