@@ -334,6 +334,7 @@
       rfbDebt: get('rfb'), rfbTotal: get('rfb'),
       pgfnSimple: get('simple'), pgfnPrev: get('socialSecurity'),
       pgfnTrib: get('tax'), pgfnOther: get('other'),
+      impediment: Boolean(panel.querySelector('[name="impediment"]')?.checked),
       hasImpediment: Boolean(panel.querySelector('[name="impediment"]')?.checked),
       simplifiedProposal: Boolean(panel.querySelector('[name="simplified"]')?.checked)
     });
@@ -356,20 +357,86 @@
     });
   }
 
+  function updateAutomaticText(lead, field, memoryField, value) {
+    const current = text(lead[field]);
+    const previousAutomatic = text(lead[memoryField]);
+    if (!current || current === previousAutomatic) lead[field] = value;
+    lead[memoryField] = value;
+  }
+
+  function syncAutomaticFronts(lead, fronts) {
+    const previousAutomatic = new Set(Array.isArray(lead.autoSelectedFronts) ? lead.autoSelectedFronts : []);
+    const manual = (Array.isArray(lead.selectedFronts) ? lead.selectedFronts : []).filter((item) => !previousAutomatic.has(item));
+    lead.autoSelectedFronts = [...fronts];
+    lead.selectedFronts = [...new Set([...manual, ...fronts])];
+  }
+
+  function registerSnapshotNote(lead, state, diagnostic, now) {
+    lead.notes = Array.isArray(lead.notes) ? lead.notes : [];
+    const scenarios = diagnostic.selectedScenarioNames.join('; ') || 'nenhum cenário selecionado';
+    const signature = `diagnostic-snapshot|${state.selections.join(',')}|${diagnostic.potentialReduction}`;
+    const recent = [...lead.notes].reverse().find((note) => note._signature === signature && Date.now() - new Date(note.createdAt || 0).getTime() < 5000);
+    if (recent) return;
+    lead.notes.push({
+      id: `note_${Date.now().toString(36)}`,
+      date: now.slice(0, 10),
+      title: 'Diagnóstico e simulação estratégica registrados',
+      body: `${diagnostic.summary} Cenários levados ao relatório: ${scenarios}. Próximo passo: ${diagnostic.nextStep}`,
+      tags: ['simulação', 'estratégia', 'relatório'],
+      pinned: true,
+      automatic: true,
+      createdAt: now,
+      updatedAt: now,
+      _signature: signature
+    });
+  }
+
   function persist(ctx, snapshot = false) {
     const state = stateFromLead(ctx.lead);
     const output = calculate(state);
     const potential = selectedReduction(state, output);
     const now = new Date().toISOString();
+    const ratings = Engine.calculateRiskRatings(ctx.lead);
+    const simulations = Engine.reportRows({ lead: ctx.lead, state, output, selections: state.selections });
+    const diagnostic = Engine.buildDiagnostic({
+      lead: ctx.lead,
+      state,
+      output,
+      selections: state.selections,
+      rows: simulations,
+      ratings,
+      inactionRate: ctx.db.settings?.pricing?.inactionAnnualRate ?? 12
+    });
+    const reportConfig = { ...(ctx.lead.reportConfig || {}) };
+    ['showExecutive', 'showCurrent', 'showInaction', 'showTarget', 'showStrategy', 'showFronts', 'showPlan', 'showNextSteps'].forEach((key) => {
+      if (reportConfig[key] === undefined) reportConfig[key] = true;
+    });
+    ['showRT', 'showFinancial', 'showFiscal', 'showCollection', 'showSimulations', 'showReduction'].forEach((key) => { reportConfig[key] = true; });
+    if (!text(reportConfig.conclusion) || text(reportConfig.conclusion) === text(ctx.lead.autoReportConclusion)) {
+      reportConfig.conclusion = diagnostic.conclusion;
+    }
+    updateAutomaticText(ctx.lead, 'manualStrategyTitle', 'autoStrategyTitle', diagnostic.title);
+    updateAutomaticText(ctx.lead, 'manualStrategySummary', 'autoStrategySummary', diagnostic.summary);
+    updateAutomaticText(ctx.lead, 'manualPlan', 'autoStrategyPlan', diagnostic.plan.join('\n'));
+    syncAutomaticFronts(ctx.lead, diagnostic.fronts);
     Object.assign(ctx.lead, {
       strategicCombinedReduction: output.strategicReduction,
       potentialReduction: potential,
       reportStrategicStatement: `Com a estratégia certa, o potencial de redução é de ${brl(potential)}`,
+      reportPotentialReduction: potential,
+      reportSelectedScenarios: simulations.filter((item) => item.id !== 'strategic_total'),
+      selectedScenarioId: state.selections.length ? `strategic:${state.selections.join('+')}` : '',
+      simulations,
+      ratings,
+      diagnosticFinal: diagnostic,
+      reportConfig,
+      autoReportConclusion: diagnostic.conclusion,
       updatedAt: now,
       lastMovementAt: now
     });
     if (snapshot) {
-      ctx.lead.lastSimulation = {
+      const savedSimulation = {
+        id: `strategic_${Date.now().toString(36)}`,
         title: `Simulação estratégica — ${new Date().toLocaleDateString('pt-BR')}`,
         summary: ctx.lead.reportStrategicStatement,
         totalDebt: output.totalDebt,
@@ -381,11 +448,20 @@
         migration: output.migration,
         tis: output.tis,
         guarantee: output.guarantee,
+        simulations,
+        ratings,
+        diagnostic,
         createdAt: now
       };
+      ctx.lead.lastSimulation = savedSimulation;
+      ctx.lead.simulationHistory = Array.isArray(ctx.lead.simulationHistory) ? ctx.lead.simulationHistory : [];
+      ctx.lead.simulationHistory.unshift(savedSimulation);
+      ctx.lead.simulationHistory = ctx.lead.simulationHistory.slice(0, 20);
+      registerSnapshotNote(ctx.lead, state, diagnostic, now);
     }
     localStorage.setItem(ctx.key, JSON.stringify(ctx.db));
     window.dispatchEvent(new CustomEvent('radar:case-updated', { detail: { leadId: ctx.lead.id, source: 'simulations' } }));
+    document.dispatchEvent(new CustomEvent('radar:lead-updated', { detail: { leadId: ctx.lead.id, source: 'simulations' } }));
   }
 
   function toast(panel, message) {
@@ -446,6 +522,10 @@
       }
       if (event.target.closest('[data-save-snapshot]')) {
         collectDebts(panel, ctx.lead);
+        if (!stateFromLead(ctx.lead).selections.length) {
+          toast(panel, 'Inclua ao menos um cenário no relatório antes de registrar a fotografia.');
+          return;
+        }
         persist(ctx, true);
         render(panel, ctx);
         toast(panel, 'Fotografia registrada no Caderno.');
@@ -487,9 +567,14 @@
     });
   }
 
+  function patchCadernoCompatibility() {
+    if (window.RadarExt) window.RadarExt.totalDebt = (lead) => Engine.leadDebt(lead).total;
+  }
+
   function mount() {
     scheduled = false;
     renameNavigation();
+    patchCadernoCompatibility();
     const ctx = context();
     const target = anchor();
     if (!ctx || !target?.parentElement) return;
@@ -531,6 +616,7 @@
   window.addEventListener('load', () => setTimeout(schedule, 700));
   document.addEventListener('DOMContentLoaded', () => setTimeout(schedule, 250), { once: true });
   setTimeout(schedule, 1200);
+  [500, 1200, 2500].forEach((delay) => setTimeout(patchCadernoCompatibility, delay));
 
   window.RadarStrategicCalculator = { mount: schedule, getContext: context, calculate };
   window.RadarSimulationsConsolidation = { reconcile: schedule };
