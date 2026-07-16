@@ -2,7 +2,7 @@
 
 Sistema de apoio à decisão, análise acompanhada e pré-venda consultiva para cenários fiscais, financeiros, processuais e de Reforma Tributária.
 
-**Release estável:** `2026.07.16-premium.5`
+**Release estável:** `2026.07.16-premium.6`
 
 ## Objetivo
 
