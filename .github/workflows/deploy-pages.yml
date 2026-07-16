@@ -96,7 +96,10 @@ jobs:
           node tests/calculator-core.test.cjs
           node tests/money-parser.test.cjs
           node tests/strategic-calculator-engine.test.cjs
-          grep -q "2026.07.16-premium.7" index.html
+          grep -q "2026.07.16-premium.8" index.html
+          grep -q "data-save-simulation-pdf" cloud/strategic-calculator.js
+          grep -q "Simulação Estratégica do Passivo" cloud/strategic-calculator.js
+          grep -q "downloadElementPdf" cloud/document-delivery.js
           grep -q "defaultPaymentMethods" cloud/notebook-commercial-hub.js
           grep -q "storedDocument(type, lead)" cloud/document-delivery.js
           grep -q "storedDocument(type, currentLead) || findDocument(type)" cloud/document-delivery.js

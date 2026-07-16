@@ -310,32 +310,40 @@
     return `${prefix}-${slug(lead.companyName || 'empresa')}-${new Date().toISOString().slice(0, 10)}.pdf`;
   }
 
+  function pdfOptions(filename) {
+    return {
+      margin: [9, 8, 9, 8],
+      filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1200 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.doc-grid > div', '.doc-ratings > article', '.doc-scenario', '.doc-highlight', '.proposal-services > article', '.nch-preview-payments > article', '.rsc-pdf-card', '.rsc-pdf-kpi'] }
+    };
+  }
+
+  async function createPdfFromSource(source, filename) {
+    if (!source) throw new Error('Não foi possível preparar o conteúdo do PDF.');
+    await loadPdfLibrary();
+    const stage = document.createElement('div');
+    stage.className = 'radar-pdf-stage';
+    stage.appendChild(printableClone(source));
+    document.body.appendChild(stage);
+    try {
+      const blob = await window.html2pdf().set(pdfOptions(filename)).from(stage).toPdf().outputPdf('blob');
+      return { blob, filename };
+    } finally {
+      stage.remove();
+    }
+  }
+
   async function createPdf(type, lead) {
     const currentLead = latestStoredLead(lead);
     // O documento salvo é a fonte principal. A busca visual fica apenas como compatibilidade.
     // Assim, cards antigos ou prévias abertas não substituem a composição atual do Caderno.
     const source = storedDocument(type, currentLead) || findDocument(type);
     if (!source) throw new Error(type === 'proposal' ? 'Atualize a proposta no Caderno antes de gerar o PDF.' : 'Construa ou atualize o relatório no Caderno antes de gerar o PDF.');
-    await loadPdfLibrary();
     const filename = documentFilename(type, currentLead);
-    const stage = document.createElement('div');
-    stage.className = 'radar-pdf-stage';
-    stage.appendChild(printableClone(source));
-    document.body.appendChild(stage);
-    try {
-      const options = {
-        margin: [9, 8, 9, 8],
-        filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1200 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.doc-grid > div', '.doc-ratings > article', '.doc-scenario', '.doc-highlight', '.proposal-services > article', '.nch-preview-payments > article'] }
-      };
-      const blob = await window.html2pdf().set(options).from(stage).toPdf().outputPdf('blob');
-      return { blob, filename };
-    } finally {
-      stage.remove();
-    }
+    return createPdfFromSource(source, filename);
   }
 
   function downloadBlob(blob, filename) {
@@ -347,6 +355,12 @@
     anchor.click();
     anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  async function downloadElementPdf(source, filename) {
+    const pdf = await createPdfFromSource(source, filename);
+    downloadBlob(pdf.blob, pdf.filename);
+    return pdf;
   }
 
   async function uploadPdf(blob, filename, lead) {
@@ -486,6 +500,10 @@
 
   const app = document.getElementById('app');
   if (app) new MutationObserver(scheduleMount).observe(app, { childList: true, subtree: true });
+  window.RadarDocumentDelivery = {
+    ...(window.RadarDocumentDelivery || {}),
+    downloadElementPdf
+  };
   window.addEventListener('radar:cloud-synced', scheduleMount);
   window.addEventListener('radar:case-updated', scheduleMount);
   window.addEventListener('load', scheduleMount);
