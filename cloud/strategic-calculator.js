@@ -10,8 +10,7 @@
     rfb: 'RFB convencional',
     migration: 'RFB — ação estratégica',
     pgfn: 'PGFN',
-    tis: 'TIS',
-    guarantee: 'Garantia'
+    tis: 'TIS'
   };
   let currentLeadId = '';
   let activeTab = 'rfb';
@@ -106,12 +105,6 @@
       migrationTerm: number(stored(lead, 'rfbMigrationTerm', 145)),
       tisDiscount: number(stored(lead, 'tisDiscountOverride', 65)),
       tisTerm: number(stored(lead, 'tisTermOverride', 145)),
-      guaranteeModel: stored(lead, 'guaranteeMode', 'prescricao_percentual'),
-      guaranteeBase: number(stored(lead, 'guaranteeBaseOverride', 0)),
-      guaranteeCostRate: number(stored(lead, 'guaranteeCostPctOverride', 15)),
-      guaranteeEntryRate: number(stored(lead, 'guaranteeEntryPctOverride', 5)),
-      guaranteeMonths: number(stored(lead, 'guaranteeInstallmentsOverride', 60)),
-      guaranteeAdditionalCosts: number(stored(lead, 'guaranteeAdditionalCosts', 0)),
       selections
     };
   }
@@ -140,17 +133,9 @@
       pgfnDebt, rfbDebt: state.debts.rfb,
       discountRate: state.tisDiscount, totalTerm: state.tisTerm
     });
-    const guarantee = Engine.calculateGuarantee({
-      model: state.guaranteeModel,
-      base: state.guaranteeBase || totalDebt,
-      costRate: state.guaranteeCostRate,
-      entryRate: state.guaranteeEntryRate,
-      months: state.guaranteeMonths,
-      additionalCosts: state.guaranteeAdditionalCosts
-    });
     const strategicReduction = pgfn.reduction + migration.reduction;
     return {
-      totalDebt, pgfnDebt, rfb, pgfn, migration, tis, guarantee,
+      totalDebt, pgfnDebt, rfb, pgfn, migration, tis,
       strategicReduction,
       strategicBalance: Math.max(0, totalDebt - strategicReduction)
     };
@@ -260,16 +245,6 @@
       <div class="rsc-report-wrap">${reportButton('tis', state, 'Incluir cenário TIS no relatório final')}</div>`;
   }
 
-  function guaranteePanel(state, output) {
-    const guarantee = output.guarantee;
-    return `
-      <div class="rsc-panel-title"><strong>Projeção de garantia</strong><small>Custos e pagamento estimados</small></div>
-      <div class="rsc-tis-kpis"><div class="rsc-kpi"><span>Base da operação</span><strong>${brl(guarantee.operationBase)}</strong></div><div class="rsc-kpi"><span>Entrada</span><strong>${brl(guarantee.entry)}</strong><small>${pct(state.guaranteeEntryRate)}</small></div><div class="rsc-kpi green"><span>Parcela projetada</span><strong>${brl(guarantee.installment)}</strong><small>${guarantee.months} parcelas</small></div></div>
-      <div class="rsc-impact"><div><span>Custos adicionais</span><strong>${brl(guarantee.additionalCosts)}</strong></div><div><span>Custo total projetado</span><strong>${brl(guarantee.total)}</strong></div></div>
-      <div class="rsc-warning">Os parâmetros de garantia podem ser ajustados na janela de premissas avançadas.</div>
-      <div class="rsc-report-wrap">${reportButton('guarantee', state)}</div>`;
-  }
-
   function assumptionsPanel(state, output) {
     return `<div class="rsc-box"><h4>Premissas aplicadas</h4><p>Os motores permanecem configuráveis sem poluir a tela principal.</p><div class="rsc-table-wrap"><table class="rsc-table"><tbody><tr><td>PGFN</td><td>${pct(state.pgfnDiscount)} de redução · entrada em ${state.pgfnEntryMonths}x · até ${state.pgfnTerm} meses</td></tr><tr><td>Migração RFB</td><td>${pct(state.migrationDiscount)} de redução · entrada em ${state.migrationEntryMonths}x · até ${state.migrationTerm} meses</td></tr><tr><td>TIS</td><td>${pct(state.tisDiscount)} de redução · ${state.tisTerm} meses · base superior a R$ 1 milhão e inferior a R$ 10 milhões</td></tr><tr><td>Passivo analisado</td><td>${brl(output.totalDebt)}</td></tr></tbody></table></div><div class="rsc-warning">Todos os valores são projeções para análise estratégica e devem ser validados conforme a situação fiscal e as regras vigentes.</div></div>`;
   }
@@ -281,7 +256,7 @@
         <section class="rsc-advanced-group"><h3>Receita Federal convencional</h3><div class="rsc-advanced-field"><label for="rsc-rfbMode">Modalidade</label><select id="rsc-rfbMode" name="rfbMode"><option value="nenhum" ${state.rfbMode === 'nenhum' ? 'selected' : ''}>Ordinário</option><option value="primeiro" ${state.rfbMode === 'primeiro' ? 'selected' : ''}>1º reparcelamento — 10%</option><option value="segundo_ou_mais" ${state.rfbMode === 'segundo_ou_mais' ? 'selected' : ''}>2º ou posterior — 20%</option><option value="personalizado" ${state.rfbMode === 'personalizado' ? 'selected' : ''}>Personalizado</option></select></div>${advancedField('Entrada personalizada (%)', 'rfbCustomEntry', state.rfbCustomEntry, 'min="0" max="100" step="0.1"')}${advancedField('Prazo total', 'rfbTerm', state.rfbTerm, 'min="1" max="120"')}${advancedField('Parcela mínima', 'rfbMinimum', state.rfbMinimum, 'min="0" step="0.01"')}</section>
         <section class="rsc-advanced-group"><h3>PGFN</h3>${advancedField('Entrada (%)', 'pgfnEntryRate', state.pgfnEntryRate, 'min="0" max="30" step="0.1"')}${advancedField('Parcelas da entrada', 'pgfnEntryMonths', state.pgfnEntryMonths, 'min="1" max="24"')}${advancedField('Redução (%)', 'pgfnDiscount', state.pgfnDiscount, 'min="0" max="70" step="0.1"')}${advancedField('Prazo geral', 'pgfnTerm', state.pgfnTerm, 'min="2" max="180"')}${advancedField('Prazo previdenciário', 'pgfnSocialTerm', state.pgfnSocialTerm, 'min="2" max="60"')}${advancedField('Parcela mínima', 'pgfnMinimum', state.pgfnMinimum, 'min="0" step="0.01"')}</section>
         <section class="rsc-advanced-group"><h3>RFB — ação estratégica</h3>${advancedField('Entrada (%)', 'migrationEntryRate', state.migrationEntryRate, 'min="0" max="30" step="0.1"')}${advancedField('Parcelas da entrada', 'migrationEntryMonths', state.migrationEntryMonths, 'min="1" max="24"')}${advancedField('Redução (%)', 'migrationDiscount', state.migrationDiscount, 'min="0" max="70" step="0.1"')}${advancedField('Prazo total', 'migrationTerm', state.migrationTerm, 'min="2" max="180"')}</section>
-        <section class="rsc-advanced-group"><h3>TIS e garantia</h3>${advancedField('Redução TIS (%)', 'tisDiscount', state.tisDiscount, 'min="0" max="70" step="0.1"')}${advancedField('Prazo TIS', 'tisTerm', state.tisTerm, 'min="37" max="180"')}<div class="rsc-advanced-field"><label for="rsc-guaranteeModel">Modelo da garantia</label><select id="rsc-guaranteeModel" name="guaranteeModel"><option value="prescricao_percentual" ${state.guaranteeModel === 'prescricao_percentual' ? 'selected' : ''}>Prescrição percentual</option><option value="contrato_impedido" ${state.guaranteeModel === 'contrato_impedido' ? 'selected' : ''}>Contrato — impedimento</option><option value="contrato_prescricao" ${state.guaranteeModel === 'contrato_prescricao' ? 'selected' : ''}>Contrato — prescrição</option></select></div>${advancedField('Base da garantia', 'guaranteeBase', state.guaranteeBase, 'min="0" step="0.01"')}${advancedField('Custo (%)', 'guaranteeCostRate', state.guaranteeCostRate, 'min="0" max="100" step="0.1"')}${advancedField('Entrada (%)', 'guaranteeEntryRate', state.guaranteeEntryRate, 'min="0" max="100" step="0.1"')}${advancedField('Parcelas', 'guaranteeMonths', state.guaranteeMonths, 'min="1" max="60"')}${advancedField('Custos adicionais', 'guaranteeAdditionalCosts', state.guaranteeAdditionalCosts, 'min="0" step="0.01"')}</section>
+        <section class="rsc-advanced-group"><h3>TIS</h3>${advancedField('Redução TIS (%)', 'tisDiscount', state.tisDiscount, 'min="0" max="70" step="0.1"')}${advancedField('Prazo TIS', 'tisTerm', state.tisTerm, 'min="37" max="180"')}</section>
       </div></div><div class="rsc-modal-foot"><button class="rsc-secondary" data-close-modal>Cancelar</button><button class="rsc-modal-save" data-save-advanced>Aplicar parâmetros</button></div>
     </div></div>`;
   }
@@ -311,7 +286,7 @@
         : '';
 
     panel.innerHTML = `<div class="rsc-shell">
-      <header class="rsc-hero"><p class="rsc-kicker">Central de simulações estratégicas</p><h2>Transforme o passivo em cenários claros de decisão.</h2><p>Compare Receita Federal, migração, PGFN, TIS e garantia em uma leitura única — com os mesmos motores lógicos registrados no caso.</p></header>
+      <header class="rsc-hero"><p class="rsc-kicker">Central de simulações estratégicas</p><h2>Transforme o passivo em cenários claros de decisão.</h2><p>Compare Receita Federal, migração, PGFN e TIS em uma leitura única — com os mesmos motores lógicos registrados no caso.</p></header>
       <div class="rsc-workspace">
         <aside class="rsc-card rsc-inputs"><h2 class="rsc-title">Dívidas por natureza</h2><p class="rsc-copy">Informe os valores para atualizar todos os cenários.</p>
           ${[['rfb','Receita Federal','RFB'],['simple','Simples Nacional','PGFN'],['socialSecurity','Previdenciária','PGFN'],['tax','Tributária','PGFN'],['other','Demais débitos','PGFN']].map(([name,label,badge]) => `<label class="rsc-field"><span>${label}<b>${badge}</b></span><div class="rsc-money"><b>R$</b><input name="debt-${name}" value="${escapeHtml(raw(state.debts[name]))}" inputmode="decimal" autocomplete="off"></div></label>`).join('')}
@@ -319,8 +294,8 @@
         <main class="rsc-card rsc-results"><div class="rsc-results-head"><div><h2 class="rsc-title">Leitura estratégica</h2><p class="rsc-copy">Cenários calculados para ${escapeHtml(ctx.lead.companyName || 'a empresa')}.</p></div><span class="rsc-status">Simulação atualizada</span></div>
           <div class="rsc-summary"><div class="rsc-kpi"><span>Passivo total</span><strong>${brl(output.totalDebt)}</strong><small>RFB + PGFN</small></div><div class="rsc-kpi green"><span>Redução estratégica</span><strong>${brl(output.strategicReduction)}</strong><small>PGFN atual + migração da RFB</small></div><div class="rsc-kpi"><span>Saldo projetado</span><strong>${brl(output.strategicBalance)}</strong><small>Após a redução estimada</small></div></div>
           ${tisAlert}
-          <nav class="rsc-tabs" aria-label="Cenários"><button class="rsc-tab ${activeTab === 'rfb' ? 'active' : ''}" data-tab="rfb" ${output.rfb.debt ? '' : 'hidden'}>RFB - ESTRATÉGIA</button><button class="rsc-tab ${activeTab === 'pgfn' ? 'active' : ''}" data-tab="pgfn">DETALHAMENTO PGFN</button><button class="rsc-tab ${activeTab === 'tis' ? 'active' : ''}" data-tab="tis" ${showTis && output.tis.eligible ? '' : 'hidden'}>CENÁRIO TIS</button><button class="rsc-tab ${activeTab === 'guarantee' ? 'active' : ''}" data-tab="guarantee">GARANTIA</button><button class="rsc-tab ${activeTab === 'assumptions' ? 'active' : ''}" data-tab="assumptions">PREMISSAS E ALERTAS</button></nav>
-          <section class="rsc-panel ${activeTab === 'rfb' ? 'active' : ''}" data-panel="rfb">${rfbPanel(state, output)}</section><section class="rsc-panel ${activeTab === 'pgfn' ? 'active' : ''}" data-panel="pgfn">${pgfnPanel(state, output)}</section><section class="rsc-panel ${activeTab === 'tis' ? 'active' : ''}" data-panel="tis">${tisPanel(state, output)}</section><section class="rsc-panel ${activeTab === 'guarantee' ? 'active' : ''}" data-panel="guarantee">${guaranteePanel(state, output)}</section><section class="rsc-panel ${activeTab === 'assumptions' ? 'active' : ''}" data-panel="assumptions">${assumptionsPanel(state, output)}</section>
+          <nav class="rsc-tabs" aria-label="Cenários"><button class="rsc-tab ${activeTab === 'rfb' ? 'active' : ''}" data-tab="rfb" ${output.rfb.debt ? '' : 'hidden'}>RFB - ESTRATÉGIA</button><button class="rsc-tab ${activeTab === 'pgfn' ? 'active' : ''}" data-tab="pgfn">DETALHAMENTO PGFN</button><button class="rsc-tab ${activeTab === 'tis' ? 'active' : ''}" data-tab="tis" ${showTis && output.tis.eligible ? '' : 'hidden'}>CENÁRIO TIS</button><button class="rsc-tab ${activeTab === 'assumptions' ? 'active' : ''}" data-tab="assumptions">PREMISSAS E ALERTAS</button></nav>
+          <section class="rsc-panel ${activeTab === 'rfb' ? 'active' : ''}" data-panel="rfb">${rfbPanel(state, output)}</section><section class="rsc-panel ${activeTab === 'pgfn' ? 'active' : ''}" data-panel="pgfn">${pgfnPanel(state, output)}</section><section class="rsc-panel ${activeTab === 'tis' ? 'active' : ''}" data-panel="tis">${tisPanel(state, output)}</section><section class="rsc-panel ${activeTab === 'assumptions' ? 'active' : ''}" data-panel="assumptions">${assumptionsPanel(state, output)}</section>
           <div class="rsc-final-report ${state.selections.length ? 'show' : ''}"><div class="rsc-final-top"><strong>Resumo selecionado para o relatório</strong><div class="rsc-selected">${selectedLabels.map((label) => `<span>${label}</span>`).join('')}</div></div><div class="rsc-final-message"><p>Com a estratégia certa, o potencial de redução é de</p><strong>${brl(potential)}</strong><small>Projeção formada apenas pelos cenários selecionados, sem duplicidade de bases.</small></div></div>
           <footer class="rsc-footer"><span data-save-status>Premissas e valores vinculados ao caso.</span><button class="rsc-save" data-save-snapshot>Registrar fotografia no Caderno</button></footer>
         </main>
@@ -350,10 +325,7 @@
       pgfnPrevTermOverride: value('pgfnSocialTerm'), pgfnMinInstallmentOverride: value('pgfnMinimum'),
       rfbMigrationEntryRate: value('migrationEntryRate'), rfbMigrationEntryMonths: value('migrationEntryMonths'),
       rfbMigrationDiscount: value('migrationDiscount'), rfbMigrationTerm: value('migrationTerm'),
-      tisDiscountOverride: value('tisDiscount'), tisTermOverride: value('tisTerm'),
-      guaranteeMode: value('guaranteeModel'), guaranteeBaseOverride: value('guaranteeBase'),
-      guaranteeCostPctOverride: value('guaranteeCostRate'), guaranteeEntryPctOverride: value('guaranteeEntryRate'),
-      guaranteeInstallmentsOverride: value('guaranteeMonths'), guaranteeAdditionalCosts: value('guaranteeAdditionalCosts')
+      tisDiscountOverride: value('tisDiscount'), tisTermOverride: value('tisTerm')
     });
   }
 
@@ -447,7 +419,6 @@
         pgfn: output.pgfn,
         migration: output.migration,
         tis: output.tis,
-        guarantee: output.guarantee,
         simulations,
         ratings,
         diagnostic,
