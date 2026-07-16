@@ -29,6 +29,17 @@
   }).format(number(value));
   const pct = (value) => `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(number(value))}%`;
   const raw = (value) => number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2, useGrouping: false });
+  const slug = (value) => text(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 70) || 'empresa';
+
+  function formattedCnpj(value) {
+    const clean = digits(value);
+    if (clean.length !== 14) return text(value) || 'Não informado';
+    return clean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  }
+
+  function responsibleName(lead) {
+    return text(lead.companyResponsibleName || lead.responsibleName || lead.contactName || lead.decisionMakerName || lead.ownerName) || 'Não informado';
+  }
 
   function database() {
     const keys = [];
@@ -261,6 +272,81 @@
     </div></div>`;
   }
 
+  function pdfField(label, value) {
+    return `<div class="rsc-pdf-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+  }
+
+  function pdfKpi(label, value, note = '', featured = false) {
+    return `<article class="rsc-pdf-kpi ${featured ? 'featured' : ''}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>${note ? `<small>${escapeHtml(note)}</small>` : ''}</article>`;
+  }
+
+  function pdfMetric(label, value, featured = false) {
+    return `<div><dt>${escapeHtml(label)}</dt><dd class="${featured ? 'featured' : ''}">${escapeHtml(value)}</dd></div>`;
+  }
+
+  function calculatorPdfDocument(lead, state, output) {
+    const pgfnRows = [
+      ['Simples Nacional', output.pgfn.natures.simple],
+      ['Previdenciária', output.pgfn.natures.socialSecurity],
+      ['Tributária', output.pgfn.natures.tax],
+      ['Demais débitos', output.pgfn.natures.other]
+    ].filter(([, item]) => item.debt > 0);
+    const conventionalMode = output.rfb.mode === 'primeiro'
+      ? 'Primeiro reparcelamento'
+      : output.rfb.mode === 'segundo_ou_mais'
+        ? 'Segundo ou posterior'
+        : output.rfb.mode === 'personalizado'
+          ? 'Entrada personalizada'
+          : 'Parcelamento ordinário';
+    const selectedLabels = state.selections.map((id) => LABELS[id]).filter(Boolean);
+    const generatedAt = new Date().toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short' });
+    const rfbSection = output.rfb.debt ? `
+      <section class="rsc-pdf-section">
+        <div class="rsc-pdf-section-head"><div><span>RFB — ESTRATÉGIA</span><h2>Receita Federal: cenário atual × ação estratégica</h2></div><b>Comparativo</b></div>
+        <div class="rsc-pdf-comparison">
+          <article class="rsc-pdf-card">
+            <span class="rsc-pdf-tag current">Cenário convencional</span><h3>${escapeHtml(conventionalMode)}</h3><p>Parcelamento sem redução financeira projetada.</p>
+            <dl>${pdfMetric('Dívida considerada', brl(output.rfb.debt))}${pdfMetric(`Entrada (${pct(output.rfb.entryRate)})`, brl(output.rfb.entry))}${pdfMetric('Saldo parcelado', `${output.rfb.months}x de ${brl(output.rfb.installment)}`)}${pdfMetric('Redução estimada', brl(0))}</dl>
+          </article>
+          <article class="rsc-pdf-card strategic">
+            <span class="rsc-pdf-tag">Ação estratégica</span><h3>Migração para a PGFN</h3><p>Projeção condicionada à migração, inscrição e elegibilidade.</p>
+            <dl>${pdfMetric(`Entrada em ${output.migration.entryMonths}x`, `${brl(output.migration.entryInstallment)} / mês`)}${pdfMetric('Saldo após a entrada', `${output.migration.balanceMonths}x de ${brl(output.migration.phaseTwoInstallment)}`)}${pdfMetric('Prazo projetado', `${output.migration.projectedTotalMonths} meses`)}${pdfMetric('Redução potencial', brl(output.migration.reduction), true)}</dl>
+          </article>
+        </div>
+      </section>` : '';
+    const pgfnSection = pgfnRows.length ? `
+      <section class="rsc-pdf-section">
+        <div class="rsc-pdf-section-head"><div><span>DETALHAMENTO PGFN</span><h2>Transação projetada por natureza</h2></div><b>${pgfnRows.length} ${pgfnRows.length === 1 ? 'natureza' : 'naturezas'}</b></div>
+        <div class="rsc-pdf-table-wrap"><table><thead><tr><th>Natureza</th><th>Dívida original</th><th>Redução</th><th>Entrada</th><th>Saldo / parcelas</th></tr></thead><tbody>${pgfnRows.map(([label, item]) => `<tr><td><strong>${escapeHtml(label)}</strong><small>Prazo total: ${item.projectedTotalMonths} meses</small></td><td>${brl(item.debt)}</td><td class="featured">${brl(item.reduction)}</td><td>${item.entryMonths}x de ${brl(item.entryInstallment)}</td><td>${item.balanceMonths}x de ${brl(item.phaseTwoInstallment)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="rsc-pdf-inline-summary"><span>Saldo negociado: <strong>${brl(output.pgfn.negotiatedBalance)}</strong></span><span>Redução PGFN: <strong>${brl(output.pgfn.reduction)}</strong></span></div>
+      </section>` : '';
+    const tisSection = output.tis.eligible ? `
+      <section class="rsc-pdf-section">
+        <div class="rsc-pdf-section-head"><div><span>CENÁRIO TIS</span><h2>Transação Individual Simplificada</h2></div><b>Potencialmente elegível</b></div>
+        <p class="rsc-pdf-lead">${output.tis.strategicEligible ? 'Cenário condicionado à migração dos débitos da Receita para a PGFN.' : 'Cenário calculado sobre o passivo PGFN atualmente informado.'}</p>
+        <div class="rsc-pdf-kpis compact">${pdfKpi('Base da negociação', brl(output.tis.basis), output.tis.strategicEligible ? 'PGFN + RFB após migração' : 'PGFN atual')}${pdfKpi('Redução projetada', brl(output.tis.reduction), `${pct(output.tis.discountRate)} sobre a base`, true)}${pdfKpi('Saldo após redução', brl(output.tis.balance), `${output.tis.totalTerm} meses`)}</div>
+        <div class="rsc-pdf-table-wrap"><table><thead><tr><th>Faixa</th><th>Percentual</th><th>Total da faixa</th><th>Parcela projetada</th></tr></thead><tbody>${output.tis.bands.map((band) => `<tr><td><strong>${escapeHtml(band.label)} parcela</strong></td><td>${pct(band.share)}</td><td>${brl(band.total)}</td><td class="featured">${band.months}x de ${brl(band.installment)}</td></tr>`).join('')}</tbody></table></div>
+      </section>` : output.tis.individual ? `
+      <section class="rsc-pdf-section"><div class="rsc-pdf-individual"><span>NEGOCIAÇÃO INDIVIDUAL</span><strong>O passivo alcança a faixa de negociação individual.</strong><p>A base estratégica considerada é de ${brl(output.tis.basis || output.totalDebt)} e não se enquadra na faixa da TIS.</p></div></section>` : '';
+
+    const article = document.createElement('article');
+    article.className = 'generated-document rsc-pdf-document';
+    article.innerHTML = `
+      <header class="rsc-pdf-cover"><div class="rsc-pdf-mark">RE</div><div><span>RADAR ESTRATÉGICO EMPRESARIAL</span><h1>Simulação Estratégica do Passivo</h1><p>${escapeHtml(lead.companyName || 'Empresa não identificada')} · ${escapeHtml(formattedCnpj(lead.cnpj))}</p></div></header>
+      <main class="rsc-pdf-body">
+        <section class="rsc-pdf-section first"><div class="rsc-pdf-section-head"><div><span>DADOS DO CASO</span><h2>Identificação da empresa</h2></div><b>Fotografia atual</b></div>
+          <div class="rsc-pdf-fields">${pdfField('Empresa', lead.companyName || 'Não informada')}${pdfField('Responsável', responsibleName(lead))}${pdfField('CNPJ', formattedCnpj(lead.cnpj))}${pdfField('Data da simulação', generatedAt)}</div>
+        </section>
+        <section class="rsc-pdf-section"><div class="rsc-pdf-section-head"><div><span>VISÃO CONSOLIDADA</span><h2>Passivo e potencial estratégico</h2></div><b>RFB + PGFN</b></div>
+          <div class="rsc-pdf-kpis">${pdfKpi('Passivo total', brl(output.totalDebt), 'Base informada na calculadora')}${pdfKpi('Receita Federal', brl(state.debts.rfb), 'Débitos RFB')}${pdfKpi('PGFN', brl(output.pgfnDebt), 'Débitos inscritos')}${pdfKpi('Redução estratégica', brl(output.strategicReduction), 'PGFN + migração RFB', true)}</div>
+          ${selectedLabels.length ? `<p class="rsc-pdf-selected"><strong>Cenários marcados para o relatório final:</strong> ${escapeHtml(selectedLabels.join(' · '))}</p>` : ''}
+        </section>
+        ${rfbSection}${pgfnSection}${tisSection}
+        <section class="rsc-pdf-section"><div class="rsc-pdf-disclaimer"><strong>Premissas da simulação</strong><p>Valores projetados para análise estratégica. A elegibilidade, os percentuais, os prazos e as condições definitivas dependem da validação documental, da situação fiscal e das regras vigentes.</p></div></section>
+      </main>`;
+    return article;
+  }
+
   function render(panel, ctx) {
     const state = stateFromLead(ctx.lead);
     const output = calculate(state);
@@ -291,7 +377,7 @@
         <aside class="rsc-card rsc-inputs"><h2 class="rsc-title">Dívidas por natureza</h2><p class="rsc-copy">Informe os valores para atualizar todos os cenários.</p>
           ${[['rfb','Receita Federal','RFB'],['simple','Simples Nacional','PGFN'],['socialSecurity','Previdenciária','PGFN'],['tax','Tributária','PGFN'],['other','Demais débitos','PGFN']].map(([name,label,badge]) => `<label class="rsc-field"><span>${label}<b>${badge}</b></span><div class="rsc-money"><b>R$</b><input name="debt-${name}" value="${escapeHtml(raw(state.debts[name]))}" inputmode="decimal" autocomplete="off"></div></label>`).join('')}
           <div class="rsc-divider"></div><div class="rsc-option"><input id="rsc-impediment" name="impediment" type="checkbox" ${state.impediment ? 'checked' : ''}><label for="rsc-impediment">Impedimento<small>Registra a condição no caso.</small></label></div><div class="rsc-option"><input id="rsc-simplified" name="simplified" type="checkbox" ${state.simplified ? 'checked' : ''}><label for="rsc-simplified">Simplificar proposta<small>Prioriza a leitura executiva no relatório.</small></label></div><div class="rsc-option"><input id="rsc-advanced" type="checkbox"><label for="rsc-advanced">Parâmetros avançados<small>Ajuste prazos, entradas e percentuais em um popup.</small></label></div><button class="rsc-primary" data-recalculate>Visualizar simulação</button><p class="rsc-micro">Valores salvos no caso após a atualização.</p></aside>
-        <main class="rsc-card rsc-results"><div class="rsc-results-head"><div><h2 class="rsc-title">Leitura estratégica</h2><p class="rsc-copy">Cenários calculados para ${escapeHtml(ctx.lead.companyName || 'a empresa')}.</p></div><span class="rsc-status">Simulação atualizada</span></div>
+        <main class="rsc-card rsc-results"><div class="rsc-results-head"><div><h2 class="rsc-title">Leitura estratégica</h2><p class="rsc-copy">Cenários calculados para ${escapeHtml(ctx.lead.companyName || 'a empresa')}.</p></div><div class="rsc-results-actions"><span class="rsc-status">Simulação atualizada</span><button class="rsc-pdf-button" data-save-simulation-pdf>Salvar simulação em PDF</button></div></div>
           <div class="rsc-summary"><div class="rsc-kpi"><span>Passivo total</span><strong>${brl(output.totalDebt)}</strong><small>RFB + PGFN</small></div><div class="rsc-kpi green"><span>Redução estratégica</span><strong>${brl(output.strategicReduction)}</strong><small>PGFN atual + migração da RFB</small></div><div class="rsc-kpi"><span>Saldo projetado</span><strong>${brl(output.strategicBalance)}</strong><small>Após a redução estimada</small></div></div>
           ${tisAlert}
           <nav class="rsc-tabs" aria-label="Cenários"><button class="rsc-tab ${activeTab === 'rfb' ? 'active' : ''}" data-tab="rfb" ${output.rfb.debt ? '' : 'hidden'}>RFB - ESTRATÉGIA</button><button class="rsc-tab ${activeTab === 'pgfn' ? 'active' : ''}" data-tab="pgfn">DETALHAMENTO PGFN</button><button class="rsc-tab ${activeTab === 'tis' ? 'active' : ''}" data-tab="tis" ${showTis && output.tis.eligible ? '' : 'hidden'}>CENÁRIO TIS</button><button class="rsc-tab ${activeTab === 'assumptions' ? 'active' : ''}" data-tab="assumptions">PREMISSAS E ALERTAS</button></nav>
@@ -489,6 +575,33 @@
         panel.querySelector('[data-modal]')?.classList.remove('show');
         const checkbox = panel.querySelector('#rsc-advanced');
         if (checkbox) checkbox.checked = false;
+        return;
+      }
+      const pdfButton = event.target.closest('[data-save-simulation-pdf]');
+      if (pdfButton) {
+        collectDebts(panel, ctx.lead);
+        persist(ctx);
+        const exporter = window.RadarDocumentDelivery?.downloadElementPdf;
+        if (!exporter) {
+          toast(panel, 'O gerador de PDF ainda está carregando. Tente novamente em instantes.');
+          return;
+        }
+        const state = stateFromLead(ctx.lead);
+        const output = calculate(state);
+        const source = calculatorPdfDocument(ctx.lead, state, output);
+        const filename = `simulacao-${slug(ctx.lead.companyName || 'empresa')}-${new Date().toISOString().slice(0, 10)}.pdf`;
+        pdfButton.disabled = true;
+        pdfButton.textContent = 'Gerando PDF...';
+        exporter(source, filename)
+          .then(() => toast(panel, 'PDF da simulação gerado e baixado.'))
+          .catch((error) => {
+            console.error('[Strategic calculator PDF]', error);
+            toast(panel, error?.message || 'Não foi possível gerar o PDF da simulação.');
+          })
+          .finally(() => {
+            pdfButton.disabled = false;
+            pdfButton.textContent = 'Salvar simulação em PDF';
+          });
         return;
       }
       if (event.target.closest('[data-save-snapshot]')) {
