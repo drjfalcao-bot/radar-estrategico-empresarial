@@ -96,7 +96,7 @@ jobs:
           node tests/calculator-core.test.cjs
           node tests/money-parser.test.cjs
           node tests/strategic-calculator-engine.test.cjs
-          grep -q "2026.07.16-premium.3" index.html
+          grep -q "2026.07.16-premium.4" index.html
           grep -q "navigation-guard.js" index.html
           grep -q "active-case-context.js" index.html
           grep -q "strategic-calculator-engine.js" index.html
@@ -128,6 +128,8 @@ jobs:
           grep -q "Formalizar o escopo técnico" cloud/strategic-calculator-engine.js
           grep -q "Risco de exposição à Reforma Tributária" cloud/strategic-calculator-engine.js
           grep -q "Montar proposta comercial" cloud/notebook-commercial-hub.js
+          grep -q "restrictReportBuilder" cloud/notebook-commercial-hub.js
+          grep -q "queueMicrotask(reconcile)" cloud/navigation-guard.js
           grep -q "Estruturação e apresentação de garantia" cloud/notebook-commercial-hub.js
           grep -q "Forma de pagamento" cloud/notebook-commercial-hub.js
           grep -q "data-save-advanced" cloud/strategic-calculator.js

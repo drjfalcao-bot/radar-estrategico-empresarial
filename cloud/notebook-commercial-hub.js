@@ -130,9 +130,19 @@
     return node;
   }
 
+  function restrictReportBuilder() {
+    const builder = document.getElementById('radar-doc-builder');
+    if (!builder) return false;
+    builder.dataset.radarReportOnly = 'true';
+    builder.querySelector('[data-doc-tab="proposal"]')?.remove();
+    builder.querySelector('.ext-builder-tabs')?.remove();
+    return true;
+  }
+
   function openReport() {
     if (window.RadarDocumentBuilder?.open) {
       window.RadarDocumentBuilder.open('report');
+      restrictReportBuilder();
       setTimeout(() => translateRiskLabels(document.getElementById('radar-doc-builder') || document), 50);
       return;
     }
@@ -382,5 +392,5 @@
   window.addEventListener('load', schedule);
   [800, 1500, 2600].forEach((delay) => setTimeout(schedule, delay));
 
-  window.RadarNotebookCommercialHub = { mount: schedule, openStrategy, openReport, openProposal, translateRiskLabels };
+  window.RadarNotebookCommercialHub = { mount: schedule, openStrategy, openReport, openProposal, restrictReportBuilder, translateRiskLabels };
 })();
