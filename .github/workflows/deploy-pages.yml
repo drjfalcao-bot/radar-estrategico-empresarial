@@ -89,35 +89,38 @@ jobs:
           node --check cloud/navigation-guard.js
           node --check cloud/calculator-core.js
           node --check cloud/active-case-context.js
-          node --check cloud/scenario-lite.js
-          node --check cloud/simulations-consolidation.js
+          node --check cloud/strategic-calculator-engine.js
+          node --check cloud/strategic-calculator.js
           node --check cloud/document-delivery.js
           node tests/calculator-core.test.cjs
           node tests/money-parser.test.cjs
-          grep -q "2026.07.16-final.13" index.html
+          node tests/strategic-calculator-engine.test.cjs
+          grep -q "2026.07.16-premium.1" index.html
           grep -q "navigation-guard.js" index.html
           grep -q "active-case-context.js" index.html
-          grep -q "scenario-lite.js" index.html
-          grep -q "simulations-consolidation.js" index.html
+          grep -q "strategic-calculator-engine.js" index.html
+          grep -q "strategic-calculator.js" index.html
+          grep -q "strategic-calculator.css" index.html
           grep -q "document-delivery.js" index.html
+          ! grep -q "scenario-lite.js" index.html
+          ! grep -q "simulations-consolidation.js" index.html
           ! grep -q "scenario-live-refresh.js" index.html
           ! grep -q "report-builder-loader.js" index.html
           grep -q "MutationObserver" cloud/navigation-guard.js
           grep -q "LEGACY_LABELS" cloud/navigation-guard.js
           grep -q "node.remove()" cloud/navigation-guard.js
           grep -q "routeToNotebook" cloud/navigation-guard.js
-          grep -q "Primeiro reparcelamento — 10%" cloud/scenario-lite.js
-          grep -q "Segundo ou posterior — 20%" cloud/scenario-lite.js
-          grep -q "Migração RFB → PGFN" cloud/scenario-lite.js
-          grep -q "Transação Individual Simplificada" cloud/scenario-lite.js
-          grep -q "Passivo PGFN superior a R\$ 1 milhão" cloud/scenario-lite.js
-          grep -q "Projeção de custo e pagamento" cloud/scenario-lite.js
-          grep -q "Entrada mínima (%)" cloud/scenario-lite.js
-          grep -q "Redução estratégica potencial" cloud/simulations-consolidation.js
-          grep -q "Potencial após migração da Receita" cloud/simulations-consolidation.js
-          grep -q "Registrar fotografia no Caderno" cloud/simulations-consolidation.js
-          grep -q "radar:strategic-values-updated" cloud/simulations-consolidation.js
-          ! grep -q "LEGACY_TABS" cloud/simulations-consolidation.js
+          grep -q "Primeiro reparcelamento" cloud/strategic-calculator.js
+          grep -q "Segundo ou posterior" cloud/strategic-calculator.js
+          grep -q "RFB - ESTRATÉGIA" cloud/strategic-calculator.js
+          grep -q "DETALHAMENTO PGFN" cloud/strategic-calculator.js
+          grep -q "Transação Individual Simplificada" cloud/strategic-calculator.js
+          grep -q "Retirando os débitos da Receita" cloud/strategic-calculator.js
+          grep -q "Registrar fotografia no Caderno" cloud/strategic-calculator.js
+          grep -q "Com a estratégia certa, o potencial de redução é de" cloud/strategic-calculator.js
+          grep -q "data-save-advanced" cloud/strategic-calculator.js
+          grep -q "strict" cloud/strategic-calculator-engine.js
+          grep -q "remainingMonths" cloud/strategic-calculator-engine.js
           grep -q "Gerar PDF" cloud/document-delivery.js
           grep -q "Enviar pelo WhatsApp" cloud/document-delivery.js
           grep -q "companyResponsibleName" cloud/document-delivery.js
@@ -146,6 +149,7 @@ jobs:
           cp v3/style-gz.b64 public/v3/
           cp v3/ext-*.b64 public/v3/
           cp cloud/*.js public/cloud/
+          cp cloud/*.css public/cloud/
           cp cloud/calculator-v3-*.b64 public/cloud/
           touch public/.nojekyll
           find public -maxdepth 2 -type f -print
