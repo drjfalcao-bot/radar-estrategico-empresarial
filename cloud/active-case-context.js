@@ -57,7 +57,7 @@
       cnpj: String(context.lead.cnpj || ''),
       companyName: String(context.lead.companyName || '')
     };
-    window.RadarScenarioLite?.mount?.();
+    window.RadarStrategicCalculator?.mount?.();
     return true;
   }
 
