@@ -91,16 +91,19 @@ jobs:
           node --check cloud/active-case-context.js
           node --check cloud/strategic-calculator-engine.js
           node --check cloud/strategic-calculator.js
+          node --check cloud/notebook-commercial-hub.js
           node --check cloud/document-delivery.js
           node tests/calculator-core.test.cjs
           node tests/money-parser.test.cjs
           node tests/strategic-calculator-engine.test.cjs
-          grep -q "2026.07.16-premium.2" index.html
+          grep -q "2026.07.16-premium.3" index.html
           grep -q "navigation-guard.js" index.html
           grep -q "active-case-context.js" index.html
           grep -q "strategic-calculator-engine.js" index.html
           grep -q "strategic-calculator.js" index.html
           grep -q "strategic-calculator.css" index.html
+          grep -q "notebook-commercial-hub.js" index.html
+          grep -q "notebook-commercial-hub.css" index.html
           grep -q "document-delivery.js" index.html
           ! grep -q "scenario-lite.js" index.html
           ! grep -q "simulations-consolidation.js" index.html
@@ -118,10 +121,15 @@ jobs:
           grep -q "Retirando os débitos da Receita" cloud/strategic-calculator.js
           grep -q "Registrar fotografia no Caderno" cloud/strategic-calculator.js
           grep -q "Com a estratégia certa, o potencial de redução é de" cloud/strategic-calculator.js
+          ! grep -q 'data-tab="guarantee"' cloud/strategic-calculator.js
           grep -q "diagnosticFinal" cloud/strategic-calculator.js
           grep -q "calculateRiskRatings" cloud/strategic-calculator-engine.js
           grep -q "reportRows" cloud/strategic-calculator-engine.js
           grep -q "Formalizar o escopo técnico" cloud/strategic-calculator-engine.js
+          grep -q "Risco de exposição à Reforma Tributária" cloud/strategic-calculator-engine.js
+          grep -q "Montar proposta comercial" cloud/notebook-commercial-hub.js
+          grep -q "Estruturação e apresentação de garantia" cloud/notebook-commercial-hub.js
+          grep -q "Forma de pagamento" cloud/notebook-commercial-hub.js
           grep -q "data-save-advanced" cloud/strategic-calculator.js
           grep -q "strict" cloud/strategic-calculator-engine.js
           grep -q "remainingMonths" cloud/strategic-calculator-engine.js
