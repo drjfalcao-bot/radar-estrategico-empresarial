@@ -2,7 +2,7 @@
 
 Sistema de apoio à decisão, análise acompanhada e pré-venda consultiva para cenários fiscais, financeiros, processuais e de Reforma Tributária.
 
-**Release estável:** `2026.07.16-premium.7`
+**Release estável:** `2026.07.16-premium.8`
 
 ## Objetivo
 
@@ -37,6 +37,7 @@ O produto não substitui o CRM pós-venda. Após a assinatura, o caso pode ser e
 - assinatura profissional vinculada ao perfil do usuário;
 - relatório sem honorários por padrão;
 - proposta financeira separada do relatório;
+- PDF próprio da calculadora com identificação da empresa, passivo e simulações aplicáveis;
 - comparação visual entre cenário atual, barreira e condição buscada.
 
 ## Simulador final de regularização
