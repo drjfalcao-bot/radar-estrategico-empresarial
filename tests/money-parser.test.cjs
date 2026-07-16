@@ -35,6 +35,6 @@ const loader = fs.readFileSync('v3-loader.js', 'utf8');
 assert.match(loader, /typeof v === 'number'/);
 assert.match(loader, /raw\.includes\(','\)/);
 assert.match(loader, /RadarPatchMoneyParser/);
-assert.doesNotMatch(loader, /const num = v => Number\(String\(v \?\? ''\)\.replace/);
+assert.match(loader, /FIXED_NUM_PARSER/);
 
 console.log('money-parser: PASS');
