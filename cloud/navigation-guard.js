@@ -116,7 +116,7 @@
   function schedule() {
     if (scheduled) return;
     scheduled = true;
-    requestAnimationFrame(reconcile);
+    queueMicrotask(reconcile);
   }
 
   document.addEventListener('click', (event) => {
