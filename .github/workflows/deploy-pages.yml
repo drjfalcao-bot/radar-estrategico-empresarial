@@ -83,7 +83,7 @@ jobs:
           grep -q "create policy" supabase/schema.sql
           grep -q "approved users read owned leads admin reads all" supabase/schema.sql
 
-      - name: Validate cleaned simulations and notebook flow
+      - name: Validate simulations, notebook and delivery flow
         run: |
           set -euo pipefail
           node --check cloud/navigation-guard.js
@@ -91,13 +91,15 @@ jobs:
           node --check cloud/active-case-context.js
           node --check cloud/scenario-lite.js
           node --check cloud/simulations-consolidation.js
+          node --check cloud/document-delivery.js
           node tests/calculator-core.test.cjs
           node tests/money-parser.test.cjs
-          grep -q "2026.07.15-final.12" index.html
+          grep -q "2026.07.16-final.13" index.html
           grep -q "navigation-guard.js" index.html
           grep -q "active-case-context.js" index.html
           grep -q "scenario-lite.js" index.html
           grep -q "simulations-consolidation.js" index.html
+          grep -q "document-delivery.js" index.html
           ! grep -q "scenario-live-refresh.js" index.html
           ! grep -q "report-builder-loader.js" index.html
           grep -q "MutationObserver" cloud/navigation-guard.js
@@ -116,6 +118,15 @@ jobs:
           grep -q "Registrar fotografia no Caderno" cloud/simulations-consolidation.js
           grep -q "radar:strategic-values-updated" cloud/simulations-consolidation.js
           ! grep -q "LEGACY_TABS" cloud/simulations-consolidation.js
+          grep -q "Gerar PDF" cloud/document-delivery.js
+          grep -q "Enviar pelo WhatsApp" cloud/document-delivery.js
+          grep -q "companyResponsibleName" cloud/document-delivery.js
+          grep -q "client-documents" cloud/document-delivery.js
+          grep -q "createSignedUrl" cloud/document-delivery.js
+          grep -q "https://wa.me/" cloud/document-delivery.js
+          grep -q "html2pdf.bundle.min.js" cloud/document-delivery.js
+          grep -q "client documents insert own folder" supabase/migrations/20260716_create_client_documents_bucket.sql
+          grep -q "application/pdf" supabase/migrations/20260716_create_client_documents_bucket.sql
           ! grep -q "calculator-workbench.js" index.html
           ! grep -q "calculator-v3-loader.js" index.html
           ! grep -q "scenario-context-fix.js" index.html
