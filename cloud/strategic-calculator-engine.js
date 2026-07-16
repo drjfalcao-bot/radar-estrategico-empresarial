@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const VERSION = '2026.07.16-premium.2';
+  const VERSION = '2026.07.16-premium.3';
 
   function number(value) {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -152,12 +152,6 @@
       installment: round2(output.tis.bands?.[0]?.installment), term: `${output.tis.totalTerm} meses em faixas escalonadas`,
       note: output.tis.strategicEligible ? 'Cenário condicionado à migração da Receita para a PGFN.' : 'Cenário calculado sobre o passivo PGFN atual.'
     });
-    if (selected.has('guarantee') && output.guarantee) rows.push({
-      id: 'guarantee', source: 'strategic-calculator', name: 'Estruturação de garantia',
-      original: round2(output.guarantee.operationBase), entry: round2(output.guarantee.entry), reduction: 0,
-      installment: round2(output.guarantee.installment), term: `${output.guarantee.months} parcelas`,
-      note: `Custo total projetado: ${round2(output.guarantee.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
-    });
     const potential = selected.has('tis') ? number(output.tis?.reduction) : rows.reduce((sum, row) => sum + number(row.reduction), 0);
     const highest = Math.max(0, ...rows.map((row) => number(row.reduction)));
     if (potential > highest + 0.01) rows.push({
@@ -187,10 +181,11 @@
     if (selections.includes('tis')) title = 'Regularização com enquadramento potencial em TIS';
     else if (selections.includes('migration')) title = 'Migração do passivo da Receita e negociação estratégica na PGFN';
     else if (selections.includes('pgfn')) title = 'Transação do passivo inscrito com estruturação financeira';
-    else if (selections.includes('guarantee')) title = 'Regularização coordenada com estruturação de garantia';
     const ordered = [
-      ['Collection Rate', ratings.collection], ['Fiscal Rate', ratings.fiscal],
-      ['Financial Rate', ratings.financial], ['RT-Score', ratings.rt]
+      ['Risco de cobrança e execução', ratings.collection],
+      ['Risco fiscal e de regularidade', ratings.fiscal],
+      ['Risco de comprometimento de caixa', ratings.financial],
+      ['Risco de exposição à Reforma Tributária', ratings.rt]
     ].sort((a, b) => b[1] - a[1]);
     const mainRisk = ordered[0];
     const reductionText = potentialReduction > 0
@@ -203,7 +198,6 @@
     if (selections.includes('migration')) fronts.push('Migração RFB para PGFN');
     if (selections.includes('pgfn')) fronts.push('Transação PGFN por natureza');
     if (selections.includes('tis')) fronts.push('Validação e estruturação da TIS');
-    if (selections.includes('guarantee')) fronts.push('Estruturação de garantia');
     if (ratings.collection >= 55) fronts.push('Acompanhamento da cobrança e estratégia defensiva');
     if (ratings.financial >= 55) fronts.push('Estruturação compatível com o caixa');
     const plan = [
@@ -215,7 +209,17 @@
     ];
     const conclusion = `O diagnóstico demonstra que a manutenção do cenário atual preserva riscos e pode elevar a exposição financeira. A estratégia recomendada cria uma rota objetiva para organizar o passivo${potentialReduction > 0 ? ` e buscar redução potencial de ${money(potentialReduction)}` : ''}. Para transformar a projeção em resultado, a próxima etapa é formalizar a contratação do escopo técnico, validar a documentação e iniciar a implementação das medidas selecionadas.`;
     return {
-      generatedAt: new Date().toISOString(), ratings, ratingBands: Object.fromEntries(Object.entries(ratings).map(([key, value]) => [key, riskBand(value)])),
+      generatedAt: new Date().toISOString(), ratings,
+      ratingLabels: {
+        rt: 'Risco de exposição à Reforma Tributária',
+        financial: 'Risco de comprometimento de caixa',
+        fiscal: 'Risco fiscal e de regularidade',
+        collection: 'Risco de cobrança e execução',
+        need: 'Nível de necessidade estratégica',
+        opportunity: 'Potencial da oportunidade',
+        closing: 'Probabilidade de fechamento'
+      },
+      ratingBands: Object.fromEntries(Object.entries(ratings).map(([key, value]) => [key, riskBand(value)])),
       currentDebt: round2(currentDebt), inactionRate: round2(inactionRate), inactionTotal,
       selectedScenarios: selections, selectedScenarioNames: selectedNames,
       potentialReduction: round2(potentialReduction), projectedBalance: round2(Math.max(0, currentDebt - potentialReduction)),
