@@ -96,10 +96,12 @@ jobs:
           node tests/calculator-core.test.cjs
           node tests/money-parser.test.cjs
           node tests/strategic-calculator-engine.test.cjs
-          grep -q "2026.07.16-premium.6" index.html
+          grep -q "2026.07.16-premium.7" index.html
           grep -q "defaultPaymentMethods" cloud/notebook-commercial-hub.js
           grep -q "storedDocument(type, lead)" cloud/document-delivery.js
           grep -q "storedDocument(type, currentLead) || findDocument(type)" cloud/document-delivery.js
+          grep -q "radar-pdf-stage .doc-grid" cloud/document-delivery.js
+          grep -q "windowWidth: 1200" cloud/document-delivery.js
           grep -q "navigation-guard.js" index.html
           grep -q "active-case-context.js" index.html
           grep -q "strategic-calculator-engine.js" index.html
