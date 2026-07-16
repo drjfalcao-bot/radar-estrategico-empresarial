@@ -251,6 +251,13 @@
     return documentFromHtml(window.RadarDocumentBuilder.buildReport(lead, { ...defaults, ...(lead.reportConfig || {}) }));
   }
 
+  function latestStoredLead(lead) {
+    const base = readDatabase();
+    if (!base?.db?.leads?.length) return lead;
+    const current = base.db.leads.find((item) => String(item.id || '') === String(lead?.id || ''));
+    return current || lead;
+  }
+
   function printableClone(source) {
     const clone = source.cloneNode(true);
     clone.querySelectorAll('button,input,textarea,select,.no-print,[data-internal-only],#radar-document-delivery').forEach((node) => node.remove());
@@ -297,10 +304,13 @@
   }
 
   async function createPdf(type, lead) {
-    const source = findDocument(type) || storedDocument(type, lead);
+    const currentLead = latestStoredLead(lead);
+    // O documento salvo é a fonte principal. A busca visual fica apenas como compatibilidade.
+    // Assim, cards antigos ou prévias abertas não substituem a composição atual do Caderno.
+    const source = storedDocument(type, currentLead) || findDocument(type);
     if (!source) throw new Error(type === 'proposal' ? 'Atualize a proposta no Caderno antes de gerar o PDF.' : 'Construa ou atualize o relatório no Caderno antes de gerar o PDF.');
     await loadPdfLibrary();
-    const filename = documentFilename(type, lead);
+    const filename = documentFilename(type, currentLead);
     const stage = document.createElement('div');
     stage.className = 'radar-pdf-stage';
     stage.appendChild(printableClone(source));
