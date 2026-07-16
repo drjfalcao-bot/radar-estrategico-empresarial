@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const VERSION = '2026.07.16-premium.6';
+  const VERSION = '2026.07.16-premium.7';
 
   function number(value) {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
