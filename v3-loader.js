@@ -32,6 +32,35 @@
     return source.split(BROKEN_NUM_PARSER).join(FIXED_NUM_PARSER);
   }
 
+  function installCloudSyncBridge(code) {
+    const source = String(code || '');
+    const marker = '\n  render();\n})();';
+    const position = source.lastIndexOf(marker);
+    if (position < 0) return source;
+    const bridge = `
+  window.addEventListener('radar:cloud-data-updated', () => {
+    const activeId = state.currentId;
+    state.db = loadDB();
+    if (activeId && !state.db.leads.some((lead) => lead.id === activeId)) {
+      state.currentId = null;
+      state.view = 'dashboard';
+    }
+    render();
+  });
+
+  render();
+})();`;
+    return `${source.slice(0, position)}\n${bridge}${source.slice(position + marker.length)}`;
+  }
+
+  function patchApplication(code) {
+    const moneyPatched = patchMoneyParser(code);
+    if (moneyPatched === code) throw new Error('O parser monetário esperado não foi encontrado no pacote V3.');
+    const applicationPatched = installCloudSyncBridge(moneyPatched);
+    if (applicationPatched === moneyPatched) throw new Error('Não foi possível instalar a atualização dinâmica das leads.');
+    return applicationPatched;
+  }
+
   window.RadarPatchMoneyParser = patchMoneyParser;
 
   function showLoading() {
@@ -72,8 +101,7 @@
     showLoading();
     const [appBase64, styleBase64] = await Promise.all([fetchJoined(APP_PARTS), fetchJoined(STYLE_PARTS)]);
     const [rawAppCode, css] = await Promise.all([gunzip(appBase64), gunzip(styleBase64)]);
-    const appCode = patchMoneyParser(rawAppCode);
-    if (appCode === rawAppCode) throw new Error('O parser monetário esperado não foi encontrado no pacote V3.');
+    const appCode = patchApplication(rawAppCode);
     window.__V3_CSS__ = css;
     const style = document.createElement('style');
     style.id = 'radar-v3-style';

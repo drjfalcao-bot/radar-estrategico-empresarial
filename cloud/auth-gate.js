@@ -38,8 +38,8 @@
       })));
     }
 
-    await loadScript('./v3-loader.js?v=20260715-final12-money-parser', 'radar-main-loader');
-    await loadScript('./v3-ext-loader.js?v=20260715-final12-money-parser', 'radar-extension-loader');
+    await loadScript('./v3-loader.js?v=20260720-cloud1', 'radar-main-loader');
+    await loadScript('./v3-ext-loader.js?v=20260720-cloud1', 'radar-extension-loader');
   }
 
   function renderShell(content) {
@@ -208,6 +208,25 @@
     return data || [];
   }
 
+  function cloudRowsToLeads(rows) {
+    return (rows || []).map((row) => ({
+      ...(row.payload || {}),
+      id: row.id,
+      companyName: row.payload?.companyName || row.company_name || '',
+      cnpj: row.payload?.cnpj || row.cnpj || '',
+      stage: row.payload?.stage || row.stage || 'identificada',
+      ownerUserId: row.owner_user_id
+    }));
+  }
+
+  function cloudRevision(rows) {
+    return (rows || []).map((row) => `${row.id}:${row.updated_at || ''}`).sort().join('|');
+  }
+
+  function leadSnapshots(leads) {
+    return new Map((leads || []).map((lead) => [String(lead.id), JSON.stringify(lead)]));
+  }
+
   async function hydrateCloudDatabase(profile) {
     const dbKey = findDatabaseKey();
     if (!dbKey) return false;
@@ -216,14 +235,7 @@
     if (!localDb) return false;
 
     const cloudRows = await fetchCloudLeads();
-    const cloudLeads = cloudRows.map((row) => ({
-      ...(row.payload || {}),
-      id: row.id,
-      companyName: row.payload?.companyName || row.company_name || '',
-      cnpj: row.payload?.cnpj || row.cnpj || '',
-      stage: row.payload?.stage || row.stage || 'identificada',
-      ownerUserId: row.owner_user_id
-    }));
+    const cloudLeads = cloudRowsToLeads(cloudRows);
 
     const shouldMigrate = profile.role === 'admin' && config.migrateLocalLeadsForAdmin && cloudRows.length === 0 && Array.isArray(localDb.leads) && localDb.leads.length > 0;
 
@@ -238,14 +250,15 @@
 
     window.RadarCloud.dbKey = dbKey;
     window.RadarCloud.remoteIds = new Set(cloudRows.map((row) => row.id));
+    window.RadarCloud.remoteRevision = cloudRevision(cloudRows);
     return true;
   }
 
-  async function pushLocalLeads(dbKey, profile, previousRemoteIds) {
+  async function pushLocalLeads(dbKey, profile, previousRemoteIds, changedIds = null) {
     const localDb = readLocalDatabase(dbKey);
     if (!localDb || !Array.isArray(localDb.leads)) return;
 
-    const rows = localDb.leads.map((lead) => {
+    const allRows = localDb.leads.map((lead) => {
       const ownerUserId = lead.ownerUserId || profile.id;
       const payload = { ...lead, ownerUserId };
       return {
@@ -257,13 +270,16 @@
         payload
       };
     });
+    const rows = changedIds instanceof Set
+      ? allRows.filter((row) => changedIds.has(String(row.id)))
+      : allRows;
 
     if (rows.length) {
       const { error } = await window.RadarCloud.supabase.from('leads').upsert(rows, { onConflict: 'id' });
       if (error) throw error;
     }
 
-    const currentIds = new Set(rows.map((row) => row.id));
+    const currentIds = new Set(allRows.map((row) => row.id));
     const removed = [...previousRemoteIds].filter((id) => !currentIds.has(id));
     if (removed.length) {
       const { error } = await window.RadarCloud.supabase.from('leads').delete().in('id', removed);
@@ -293,29 +309,86 @@
   }
 
   function startCloudSync(profile) {
-    let lastSnapshot = '';
     let syncing = false;
-    const interval = Math.max(900, Number(config.syncIntervalMs) || 1800);
+    const syncInterval = Math.max(900, Number(config.syncIntervalMs) || 1800);
+    const refreshInterval = Math.max(3000, Number(config.cloudRefreshIntervalMs) || 5000);
+    const initialDbKey = window.RadarCloud.dbKey || findDatabaseKey();
+    const initialDb = initialDbKey ? readLocalDatabase(initialDbKey) : null;
+    let baseline = leadSnapshots(initialDb?.leads);
 
-    setInterval(async () => {
+    function pendingChanges(db) {
+      const currentIds = new Set((db?.leads || []).map((lead) => String(lead.id)));
+      const changedIds = new Set((db?.leads || [])
+        .filter((lead) => baseline.get(String(lead.id)) !== JSON.stringify(lead))
+        .map((lead) => String(lead.id)));
+      const removedIds = [...baseline.keys()].filter((id) => !currentIds.has(id));
+      return { changedIds, removedIds };
+    }
+
+    async function pushPendingLocal(dbKey, db) {
+      const pending = pendingChanges(db);
+      if (!pending.changedIds.size && !pending.removedIds.length) return false;
+      await pushLocalLeads(dbKey, profile, window.RadarCloud.remoteIds || new Set(), pending.changedIds);
+      const saved = readLocalDatabase(dbKey);
+      baseline = leadSnapshots(saved?.leads);
+      return true;
+    }
+
+    async function syncLocalChanges() {
       if (syncing) return;
       const dbKey = window.RadarCloud.dbKey || findDatabaseKey();
       if (!dbKey) return;
       const db = readLocalDatabase(dbKey);
       if (!db || !Array.isArray(db.leads)) return;
-      const snapshot = JSON.stringify(db.leads);
-      if (snapshot === lastSnapshot) return;
+      const pending = pendingChanges(db);
+      if (!pending.changedIds.size && !pending.removedIds.length) return;
       syncing = true;
       try {
-        await pushLocalLeads(dbKey, profile, window.RadarCloud.remoteIds || new Set());
-        lastSnapshot = snapshot;
-        window.dispatchEvent(new CustomEvent('radar:cloud-synced'));
+        if (await pushPendingLocal(dbKey, db)) {
+          window.dispatchEvent(new CustomEvent('radar:cloud-synced', { detail: { source: 'local-push' } }));
+        }
       } catch (error) {
-        console.error('[Radar Cloud sync]', error);
+        console.error('[Radar Cloud local sync]', error);
       } finally {
         syncing = false;
       }
-    }, interval);
+    }
+
+    async function refreshCloudLeads() {
+      if (syncing) return;
+      const dbKey = window.RadarCloud.dbKey || findDatabaseKey();
+      if (!dbKey) return;
+      const db = readLocalDatabase(dbKey);
+      if (!db || !Array.isArray(db.leads)) return;
+      syncing = true;
+      try {
+        await pushPendingLocal(dbKey, db);
+        const cloudRows = await fetchCloudLeads();
+        const revision = cloudRevision(cloudRows);
+        window.RadarCloud.remoteIds = new Set(cloudRows.map((row) => row.id));
+        if (revision === window.RadarCloud.remoteRevision) return;
+
+        const updatedDb = readLocalDatabase(dbKey);
+        if (!updatedDb || !Array.isArray(updatedDb.leads)) return;
+        updatedDb.leads = cloudRowsToLeads(cloudRows);
+        localStorage.setItem(dbKey, JSON.stringify(updatedDb));
+        window.RadarCloud.remoteRevision = revision;
+        window.dispatchEvent(new CustomEvent('radar:cloud-data-updated', {
+          detail: { source: 'remote-pull', leadCount: updatedDb.leads.length }
+        }));
+        window.dispatchEvent(new CustomEvent('radar:cloud-synced', { detail: { source: 'remote-pull' } }));
+        baseline = leadSnapshots(readLocalDatabase(dbKey)?.leads);
+      } catch (error) {
+        console.error('[Radar Cloud remote sync]', error);
+      } finally {
+        syncing = false;
+      }
+    }
+
+    setInterval(syncLocalChanges, syncInterval);
+    setInterval(refreshCloudLeads, refreshInterval);
+    window.RadarCloud.refreshLeads = refreshCloudLeads;
+    setTimeout(refreshCloudLeads, 700);
   }
 
   async function loadAdminModule(profile) {
@@ -383,6 +456,7 @@
       profile: null,
       dbKey: null,
       remoteIds: new Set(),
+      remoteRevision: '',
       refreshAccess: resolveCurrentAccess,
       fetchCloudLeads,
       pushLocalLeads

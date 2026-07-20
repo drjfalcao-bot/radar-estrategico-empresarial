@@ -10,5 +10,8 @@ window.RADAR_SUPABASE_CONFIG = Object.freeze({
   migrateLocalLeadsForAdmin: true,
 
   // Intervalo de sincronização do navegador com o banco.
-  syncIntervalMs: 1800
+  syncIntervalMs: 1800,
+
+  // Atualiza a lista autorizada de leads sem exigir novo login.
+  cloudRefreshIntervalMs: 5000
 });

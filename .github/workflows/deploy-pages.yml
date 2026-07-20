@@ -78,7 +78,10 @@ jobs:
           grep -q "Solicitar acesso" cloud/auth-gate.js
           grep -q "approval_status" cloud/auth-gate.js
           grep -q "owner_user_id" cloud/auth-gate.js
-          grep -q "20260715-final12-money-parser" cloud/auth-gate.js
+          grep -q "20260720-cloud1" cloud/auth-gate.js
+          grep -q "cloudRefreshIntervalMs" cloud/supabase-config.js
+          grep -q "radar:cloud-data-updated" cloud/auth-gate.js
+          grep -q "installCloudSyncBridge" v3-loader.js
           grep -q "Administração de acessos" cloud/admin-access.js
           grep -q "create policy" supabase/schema.sql
           grep -q "approved users read owned leads admin reads all" supabase/schema.sql
@@ -96,7 +99,7 @@ jobs:
           node tests/calculator-core.test.cjs
           node tests/money-parser.test.cjs
           node tests/strategic-calculator-engine.test.cjs
-          grep -q "2026.07.16-premium.8" index.html
+          grep -q "2026.07.20-cloud.1" index.html
           grep -q "data-save-simulation-pdf" cloud/strategic-calculator.js
           grep -q "Simulação Estratégica do Passivo" cloud/strategic-calculator.js
           grep -q "downloadElementPdf" cloud/document-delivery.js

@@ -2,7 +2,7 @@
 
 Sistema de apoio à decisão, análise acompanhada e pré-venda consultiva para cenários fiscais, financeiros, processuais e de Reforma Tributária.
 
-**Release estável:** `2026.07.16-premium.8`
+**Release estável:** `2026.07.20-cloud.1`
 
 ## Objetivo
 
@@ -18,6 +18,7 @@ O produto não substitui o CRM pós-venda. Após a assinatura, o caso pode ser e
 - perfis `admin` e `user`;
 - segregação de leads por responsável com RLS no Supabase;
 - visão global e reatribuição de leads para administrador;
+- atualização automática das leads autorizadas durante a sessão;
 - Central de Diagnóstico e Simulação;
 - perfil estratégico empresarial;
 - análise acompanhada para reuniões;
