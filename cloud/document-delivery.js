@@ -15,6 +15,7 @@
 
   let mountFrame = 0;
   let saveTimer = 0;
+  let pdfLibraryPromise = null;
 
   const text = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
   const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
@@ -278,42 +279,50 @@
     return clone;
   }
 
-  function loadPdfLibrary() {
-    if (window.pdfMake?.createPdf) return Promise.resolve(window.pdfMake);
+  function loadScript(id, src, ready) {
+    if (ready()) return Promise.resolve();
     return new Promise((resolve, reject) => {
-      const existing = document.getElementById(PDF_LIB_ID);
-      if (existing) {
-        if (existing.dataset.failed === 'true') {
-          existing.remove();
-          reject(new Error('O gerador de PDF não foi carregado. Atualize a página e tente novamente.'));
-          return;
-        }
-        existing.addEventListener('load', () => resolve(window.pdfMake), { once: true });
-        existing.addEventListener('error', () => reject(new Error('Não foi possível carregar o gerador de PDF.')), { once: true });
-        return;
+      let script = document.getElementById(id);
+      if (script?.dataset.failed === 'true') {
+        script.remove();
+        script = null;
       }
-      const script = document.createElement('script');
-      script.id = PDF_LIB_ID;
-      script.src = PDF_LIB_URL;
-      script.onload = () => {
-        if (!window.pdfMake?.createPdf) {
-          script.dataset.failed = 'true';
-          reject(new Error('O gerador de PDF foi carregado, mas não iniciou corretamente.'));
-          return;
-        }
-        const fonts = document.createElement('script');
-        fonts.id = PDF_FONTS_ID;
-        fonts.src = PDF_FONTS_URL;
-        fonts.onload = () => resolve(window.pdfMake);
-        fonts.onerror = () => reject(new Error('Não foi possível carregar as fontes do PDF.'));
-        document.head.appendChild(fonts);
-      };
-      script.onerror = () => {
-        script.dataset.failed = 'true';
+      const finish = () => ready()
+        ? resolve()
+        : reject(new Error('O gerador de PDF foi carregado, mas não iniciou corretamente.'));
+      const fail = () => {
+        if (script) script.dataset.failed = 'true';
         reject(new Error('Não foi possível carregar o gerador de PDF.'));
       };
+      if (script) {
+        script.addEventListener('load', finish, { once: true });
+        script.addEventListener('error', fail, { once: true });
+        return;
+      }
+      script = document.createElement('script');
+      script.id = id;
+      script.src = src;
+      script.onload = finish;
+      script.onerror = fail;
       document.head.appendChild(script);
     });
+  }
+
+  function loadPdfLibrary() {
+    const pdfReady = () => typeof window.pdfMake?.createPdf === 'function';
+    const fontsReady = () => pdfReady() && window.pdfMake.vfs && Object.keys(window.pdfMake.vfs).length > 0;
+    if (fontsReady()) return Promise.resolve(window.pdfMake);
+    if (pdfLibraryPromise) return pdfLibraryPromise;
+    pdfLibraryPromise = (async () => {
+      await loadScript(PDF_LIB_ID, PDF_LIB_URL, pdfReady);
+      await loadScript(PDF_FONTS_ID, PDF_FONTS_URL, fontsReady);
+      if (!fontsReady()) throw new Error('Não foi possível carregar as fontes do PDF.');
+      return window.pdfMake;
+    })().catch((error) => {
+      pdfLibraryPromise = null;
+      throw error;
+    });
+    return pdfLibraryPromise;
   }
 
   function slug(value) {
@@ -325,54 +334,408 @@
     return `${prefix}-${slug(lead.companyName || 'empresa')}-${new Date().toISOString().slice(0, 10)}.pdf`;
   }
 
-  function nodeText(node) { return text(node?.textContent); }
+  const PDF_COLORS = {
+    navy: '#092f52', blue: '#159bd7', green: '#14885e', red: '#b43a32', amber: '#a9650c',
+    ink: '#163b4a', body: '#46616d', muted: '#71868d', line: '#d9e5e8', pale: '#f4f8f9',
+    bluePale: '#edf6fb', greenPale: '#edf9f4', redPale: '#fff5f3', amberPale: '#fff8e8', white: '#ffffff'
+  };
 
+  function pdfSafe(value) {
+    return String(value ?? '')
+      .replace(/[\u2010-\u2015\u2212]/g, '-')
+      .replace(/[\u2192\u2794\u27f6]/g, ' para ')
+      .replace(/[\u00a0\u202f]/g, ' ')
+      .replace(/[\u200b-\u200d\ufeff]/g, '');
+  }
+  function nodeText(node) { return text(pdfSafe(node?.textContent)); }
+  function children(node) { return [...(node?.children || [])]; }
   function pdfText(value, options = {}) {
-    return { text: text(value), fontSize: 9, color: '#334e5a', lineHeight: 1.25, ...options };
+    return { text: text(pdfSafe(value)), fontSize: 9, color: PDF_COLORS.body, lineHeight: 1.28, ...options };
+  }
+
+  function richRuns(node) {
+    const runs = [];
+    const walk = (current, marks = {}) => {
+      if (current.nodeType === 3) {
+        const value = pdfSafe(current.nodeValue).replace(/\s+/g, ' ');
+        if (value) runs.push({ text: value, ...marks });
+        return;
+      }
+      if (current.nodeType !== 1) return;
+      const tag = current.tagName.toLowerCase();
+      if (['script', 'style', 'svg', 'button', 'input', 'textarea', 'select'].includes(tag)) return;
+      if (tag === 'br') {
+        runs.push({ text: '\n', ...marks });
+        return;
+      }
+      const next = { ...marks };
+      if (tag === 'strong' || tag === 'b') next.bold = true;
+      if (tag === 'em' || tag === 'i') next.italics = true;
+      if (tag === 'small') next.fontSize = 7.3;
+      [...current.childNodes].forEach((child) => walk(child, next));
+    };
+    walk(node);
+    if (!runs.length) return nodeText(node);
+    runs[0].text = runs[0].text.replace(/^\s+/, '');
+    runs[runs.length - 1].text = runs[runs.length - 1].text.replace(/\s+$/, '');
+    return runs.filter((run) => run.text);
+  }
+
+  function richText(node, options = {}) {
+    return { text: richRuns(node), fontSize: 9, color: PDF_COLORS.body, lineHeight: 1.32, ...options };
+  }
+
+  function noBorderLayout(padding = 3) {
+    return {
+      hLineWidth: () => 0, vLineWidth: () => 0,
+      paddingLeft: () => padding, paddingRight: () => padding,
+      paddingTop: () => padding, paddingBottom: () => padding
+    };
+  }
+
+  function borderedLayout(color = PDF_COLORS.line, padding = 8) {
+    return {
+      hLineWidth: () => 0.7, vLineWidth: () => 0.7,
+      hLineColor: () => color, vLineColor: () => color,
+      paddingLeft: () => padding, paddingRight: () => padding,
+      paddingTop: () => padding, paddingBottom: () => padding
+    };
+  }
+
+  function nestedCard(stack, options = {}) {
+    const border = options.border || PDF_COLORS.line;
+    return {
+      table: { widths: ['*'], body: [[{ stack, fillColor: options.fill || PDF_COLORS.white, margin: options.margin || [7, 6, 7, 6] }]] },
+      layout: borderedLayout(border, 0),
+      unbreakable: options.unbreakable !== false
+    };
+  }
+
+  function chunkRows(items, columns, factory) {
+    const rows = [];
+    for (let index = 0; index < items.length; index += columns) {
+      const row = items.slice(index, index + columns).map(factory);
+      while (row.length < columns) row.push({ text: '', border: [false, false, false, false] });
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function grid(items, columns, factory, margin = [0, 4, 0, 12]) {
+    if (!items.length) return null;
+    return {
+      table: { widths: Array(columns).fill('*'), body: chunkRows(items, columns, factory) },
+      layout: noBorderLayout(3),
+      margin
+    };
+  }
+
+  function coverBlock(header) {
+    const titleNode = header.querySelector('h1') || header.querySelector('h2');
+    const kickerNode = header.querySelector('h1')?.parentElement?.querySelector('span') || header.querySelector('span');
+    const subtitleNode = header.querySelector('h1')?.parentElement?.querySelector('p') || header.querySelector('p');
+    const brand = nodeText(header.querySelector('.doc-brand,.rsc-pdf-mark')) || 'RE';
+    let subtitle = nodeText(subtitleNode);
+    if (!subtitle) {
+      const groups = children(header).filter((node) => nodeText(node) && !node.contains(titleNode));
+      const company = groups[groups.length - 1];
+      subtitle = children(company).filter((node) => node.tagName !== 'SMALL').map(nodeText).filter(Boolean).join(' · ') || nodeText(company);
+    }
+    return {
+      table: {
+        widths: [52, '*'],
+        body: [[
+          { text: brand, color: PDF_COLORS.white, bold: true, fontSize: 15, alignment: 'center', fillColor: PDF_COLORS.blue, margin: [0, 14, 0, 14] },
+          { stack: [
+            pdfText(nodeText(kickerNode) || 'Radar Estratégico Empresarial', { color: '#8ed8ff', fontSize: 7.5, bold: true, characterSpacing: 1.2, margin: [0, 0, 0, 4] }),
+            pdfText(nodeText(titleNode) || 'Documento Estratégico', { color: PDF_COLORS.white, fontSize: 21, bold: true, lineHeight: 1.05, margin: [0, 0, 0, 5] }),
+            pdfText(subtitle, { color: '#d7e8f5', fontSize: 8.5 })
+          ], fillColor: PDF_COLORS.navy, margin: [12, 8, 12, 8] }
+        ]]
+      },
+      layout: noBorderLayout(0),
+      margin: [0, 0, 0, 22],
+      unbreakable: true
+    };
+  }
+
+  function sectionHeading(host) {
+    const titleNode = host.matches('h1,h2,h3,h4') ? host : host.querySelector('h1,h2,h3,h4');
+    if (!titleNode) return null;
+    const kicker = host === titleNode ? '' : nodeText(host.querySelector('span'));
+    const badge = host === titleNode ? '' : nodeText(host.querySelector('b'));
+    return {
+      table: { widths: ['*', 'auto'], body: [[
+        { stack: [
+          ...(kicker ? [pdfText(kicker, { color: PDF_COLORS.green, fontSize: 6.8, bold: true, characterSpacing: 1, margin: [0, 0, 0, 2] })] : []),
+          pdfText(nodeText(titleNode), { style: 'sectionTitle' })
+        ], border: [false, false, false, true], borderColor: PDF_COLORS.line, margin: [0, 0, 0, 5] },
+        { text: badge, color: PDF_COLORS.green, fontSize: 7, bold: true, alignment: 'right', border: [false, false, false, true], borderColor: PDF_COLORS.line, margin: [8, 7, 0, 5] }
+      ]] },
+      layout: noBorderLayout(0),
+      margin: [0, 0, 0, 6]
+    };
+  }
+
+  function fieldCell(node) {
+    const label = node.querySelector('span,dt,small');
+    const value = node.querySelector('strong,b,dd') || node;
+    return nestedCard([
+      pdfText(nodeText(label), { style: 'label', margin: [0, 0, 0, 3] }),
+      richText(value, { style: 'fieldValue' })
+    ], { fill: '#fbfdfd', margin: [6, 5, 6, 5] });
+  }
+
+  function fieldGrid(node, columns = 2) {
+    return grid(children(node).filter((item) => nodeText(item)), columns, fieldCell);
+  }
+
+  function cardPalette(node) {
+    if (node.matches('.target,.benefit,.strategic,.featured')) return { fill: PDF_COLORS.greenPale, border: '#a9ddcf', accent: PDF_COLORS.green };
+    if (node.matches('.inaction,.danger')) return { fill: PDF_COLORS.redPale, border: '#efcac5', accent: PDF_COLORS.red };
+    if (node.matches('.current,.impeded')) return { fill: PDF_COLORS.amberPale, border: '#efd7a9', accent: PDF_COLORS.amber };
+    return { fill: '#fbfdfd', border: PDF_COLORS.line, accent: PDF_COLORS.blue };
+  }
+
+  function definitionRows(node) {
+    const rows = children(node).filter((item) => nodeText(item)).map((item) => {
+      const key = item.querySelector('dt,span');
+      const value = item.querySelector('dd,strong,b');
+      return [
+        pdfText(nodeText(key), { color: PDF_COLORS.muted, fontSize: 7.3 }),
+        richText(value || item, { color: PDF_COLORS.ink, fontSize: 8, bold: true, alignment: 'right' })
+      ];
+    });
+    if (!rows.length) return null;
+    return { table: { widths: ['*', 'auto'], body: rows }, layout: {
+      hLineWidth: (index) => index ? 0.5 : 0, vLineWidth: () => 0,
+      hLineColor: () => PDF_COLORS.line,
+      paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 4, paddingBottom: () => 4
+    }, margin: [0, 4, 0, 0] };
+  }
+
+  function cardCell(node) {
+    const palette = cardPalette(node);
+    const direct = children(node);
+    const header = direct.find((item) => item.tagName === 'HEADER');
+    const kicker = header?.querySelector('span') || direct.find((item) => item.matches('span,.rsc-pdf-tag'));
+    const note = header?.querySelector('small');
+    const title = direct.find((item) => item.matches('h3,h4')) || direct.find((item) => item.matches('strong,b'));
+    const paragraphs = direct.filter((item) => item.tagName === 'P');
+    const detail = direct.find((item) => item.tagName === 'DL');
+    const fieldSet = direct.find((item) => item.matches('.ext-compare-values,.rsc-pdf-fields'));
+    const stack = [];
+    if (kicker) stack.push(pdfText(nodeText(kicker), { color: palette.accent, fontSize: 6.8, bold: true, characterSpacing: 0.7, margin: [0, 0, 0, 4] }));
+    if (note) stack.push(pdfText(nodeText(note), { color: PDF_COLORS.muted, fontSize: 6.6, alignment: 'right', margin: [0, -11, 0, 4] }));
+    if (title) stack.push(richText(title, { color: PDF_COLORS.ink, fontSize: 12.5, bold: true, lineHeight: 1.08, margin: [0, 0, 0, 5] }));
+    paragraphs.forEach((paragraph) => stack.push(richText(paragraph, { fontSize: 7.7, color: PDF_COLORS.body, margin: [0, 0, 0, 4] })));
+    const details = detail ? definitionRows(detail) : null;
+    if (details) stack.push(details);
+    const fields = fieldSet ? fieldGrid(fieldSet, 2) : null;
+    if (fields) stack.push(fields);
+    if (!stack.length) stack.push(richText(node));
+    return nestedCard(stack, { fill: palette.fill, border: palette.border, margin: [7, 6, 7, 6] });
+  }
+
+  function cardGrid(node) {
+    const items = children(node).filter((item) => nodeText(item));
+    const columns = node.matches('.nch-investment-comparison,.rsc-pdf-comparison,.ext-compare-values') ? 2 : Math.min(4, Math.max(1, items.length));
+    return grid(items, columns, cardCell);
+  }
+
+  function tableCell(cell, header, compact) {
+    const stack = [];
+    const direct = children(cell);
+    const structured = direct.filter((item) => item.matches('strong,b,small,p'));
+    if (structured.length) {
+      structured.forEach((item) => stack.push(richText(item, {
+        color: header ? '#315260' : item.matches('small') ? PDF_COLORS.muted : PDF_COLORS.ink,
+        fontSize: item.matches('small') ? 6.3 : compact ? 6.8 : 7.6,
+        bold: header || item.matches('strong,b'),
+        margin: [0, 0, 0, item.matches('small') ? 0 : 2]
+      })));
+    } else {
+      stack.push(richText(cell, { color: header ? '#315260' : PDF_COLORS.ink, fontSize: compact ? 6.8 : 7.6, bold: header }));
+    }
+    return { stack, fillColor: header ? '#eaf3f5' : undefined, margin: [2, 2, 2, 2] };
   }
 
   function pdfTable(table) {
-    const rows = [...table.querySelectorAll('tr')].map((row) => [...row.children].map((cell) => pdfText(cell, {
-      bold: cell.tagName === 'TH' || !!cell.querySelector('strong'),
-      color: cell.tagName === 'TH' ? '#315260' : '#243e49',
-      fillColor: cell.tagName === 'TH' ? '#eaf3f5' : undefined,
-      fontSize: cell.tagName === 'TH' ? 7 : 8,
-      margin: [5, 5, 5, 5]
-    })));
-    if (!rows.length) return null;
-    return { table: { headerRows: table.querySelector('thead') ? 1 : 0, widths: Array(rows[0].length).fill('*'), body: rows }, layout: { hLineColor: () => '#d9e5e8', vLineColor: () => '#d9e5e8', paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 }, margin: [0, 4, 0, 11], dontBreakRows: true };
+    const rowNodes = [...table.querySelectorAll('tr')];
+    if (!rowNodes.length) return null;
+    const columns = Math.max(...rowNodes.map((row) => children(row).length));
+    const compact = columns >= 5;
+    const rows = rowNodes.map((row, rowIndex) => children(row).map((cell) => tableCell(cell, cell.tagName === 'TH' || (rowIndex === 0 && !!table.querySelector('thead')), compact)));
+    return {
+      table: {
+        headerRows: table.querySelector('thead') ? 1 : 0,
+        widths: Array(columns).fill('*'),
+        body: rows,
+        dontBreakRows: true,
+        keepWithHeaderRows: 1
+      },
+      layout: {
+        hLineWidth: () => 0.6, vLineWidth: () => 0.6,
+        hLineColor: () => PDF_COLORS.line, vLineColor: () => PDF_COLORS.line,
+        fillColor: (rowIndex) => rowIndex > 0 && rowIndex % 2 === 0 ? '#fbfdfd' : null,
+        paddingLeft: () => 4, paddingRight: () => 4, paddingTop: () => 5, paddingBottom: () => 5
+      },
+      margin: [0, 4, 0, 13]
+    };
   }
 
-  function pdfBlock(node) {
-    const tag = node.tagName?.toLowerCase();
-    const value = nodeText(node);
-    if (!value) return null;
-    if (tag === 'table') return pdfTable(node);
-    if (/^h[1-6]$/.test(tag)) return pdfText(value, { fontSize: tag === 'h1' ? 21 : tag === 'h2' ? 15 : 11, bold: true, color: '#092f3b', margin: [0, tag === 'h1' ? 0 : 13, 0, 6], pageBreak: node.closest('.generated-document') && tag === 'h1' ? undefined : undefined });
-    if (tag === 'li') return { text: [{ text: '• ', color: '#14885e' }, { text: value }], fontSize: 9, color: '#334e5a', margin: [8, 2, 0, 2] };
-    if (tag === 'p') return pdfText(value, { margin: [0, 2, 0, 7] });
-    if (tag === 'strong' || tag === 'b') return pdfText(value, { bold: true });
-    return pdfText(value, { margin: [0, 2, 0, 4] });
+  function calloutBlock(node) {
+    const dark = node.matches('.doc-highlight');
+    const warning = node.matches('.rsc-pdf-individual');
+    const fill = dark ? PDF_COLORS.navy : warning ? PDF_COLORS.amberPale : PDF_COLORS.bluePale;
+    const color = dark ? PDF_COLORS.white : warning ? '#5c401a' : PDF_COLORS.ink;
+    const stack = [];
+    const title = node.querySelector('h3,h4,strong');
+    if (title) stack.push(richText(title, { color, fontSize: 11.5, bold: true, margin: [0, 0, 0, 5] }));
+    children(node).filter((item) => item.matches('p,small') && item !== title).forEach((item) => stack.push(richText(item, { color: dark ? '#d9eaf5' : PDF_COLORS.body, fontSize: 8, margin: [0, 0, 0, 3] })));
+    if (!stack.length) stack.push(richText(node, { color }));
+    return nestedCard(stack, { fill, border: dark ? PDF_COLORS.navy : warning ? '#efd7a9' : '#cfe1e7', margin: [10, 8, 10, 8] });
+  }
+
+  function listBlock(node) {
+    const ordered = node.tagName === 'OL';
+    const items = children(node).filter((item) => item.tagName === 'LI').map((item) => ({ text: richRuns(item), margin: [0, 2, 0, 2] }));
+    return { [ordered ? 'ol' : 'ul']: items, color: PDF_COLORS.body, fontSize: 8.5, lineHeight: 1.3, margin: [10, 2, 0, 10] };
+  }
+
+  function chipsBlock(node) {
+    const items = children(node).filter((item) => nodeText(item));
+    return grid(items, Math.min(4, Math.max(1, items.length)), (item) => ({
+      text: nodeText(item), color: '#075b95', bold: true, fontSize: 7.2, alignment: 'center', fillColor: '#eaf4fb', margin: [4, 5, 4, 5]
+    }), [0, 2, 0, 11]);
+  }
+
+  function serviceRows(node) {
+    const items = children(node).filter((item) => nodeText(item));
+    const rows = items.map((item) => {
+      const price = item.querySelector(':scope > b,:scope > strong') || item.querySelector('b') || children(item).find((child) => child.matches('strong'));
+      const title = item.querySelector('h3,strong');
+      const description = item.querySelector('p,small');
+      const left = { stack: [
+        richText(title || item, { color: PDF_COLORS.ink, fontSize: 8.2, bold: true, margin: [0, 0, 0, description ? 2 : 0] }),
+        ...(description ? [richText(description, { color: PDF_COLORS.muted, fontSize: 6.8 })] : [])
+      ] };
+      return [left, pdfText(nodeText(price), { color: PDF_COLORS.green, fontSize: 8.2, bold: true, alignment: 'right' })];
+    });
+    return {
+      table: { widths: ['*', 'auto'], body: rows, dontBreakRows: true },
+      layout: {
+        hLineWidth: (index) => index ? 0.5 : 0, vLineWidth: () => 0,
+        hLineColor: () => PDF_COLORS.line,
+        fillColor: (rowIndex) => rowIndex % 2 === 0 ? PDF_COLORS.pale : PDF_COLORS.white,
+        paddingLeft: () => 8, paddingRight: () => 8, paddingTop: () => 7, paddingBottom: () => 7
+      },
+      margin: [0, 3, 0, 12]
+    };
+  }
+
+  function totalBlock(node) {
+    const label = node.querySelector('span,small');
+    const value = node.querySelector('strong,b');
+    return {
+      table: { widths: ['*', 'auto'], body: [[
+        pdfText(nodeText(label), { color: '#cfe4ef', fontSize: 8, bold: true, margin: [4, 4, 4, 4] }),
+        pdfText(nodeText(value), { color: PDF_COLORS.white, fontSize: 14, bold: true, alignment: 'right', margin: [4, 0, 4, 0] })
+      ]] },
+      layout: { ...noBorderLayout(7), fillColor: () => PDF_COLORS.navy },
+      margin: [0, 4, 0, 12],
+      unbreakable: true
+    };
+  }
+
+  function signatureBlock(node) {
+    const strong = node.querySelector('strong');
+    const spans = children(node).filter((item) => item.tagName === 'SPAN');
+    return {
+      stack: [
+        { canvas: [{ type: 'line', x1: 120, y1: 0, x2: 325, y2: 0, lineWidth: 0.7, lineColor: '#8ca0b0' }], margin: [0, 0, 0, 4] },
+        pdfText(nodeText(strong), { color: PDF_COLORS.ink, fontSize: 8.5, bold: true, alignment: 'center', margin: [0, 0, 0, 2] }),
+        pdfText(spans.map(nodeText).filter(Boolean).join(' · '), { color: PDF_COLORS.muted, fontSize: 6.7, alignment: 'center' })
+      ],
+      margin: [0, 0, 0, 0],
+      unbreakable: true
+    };
+  }
+
+  function sectionBlock(section) {
+    const direct = children(section);
+    const headingHost = direct.find((item) => item.matches('h1,h2,.rsc-pdf-section-head'));
+    const stack = [];
+    const heading = headingHost ? sectionHeading(headingHost) : null;
+    if (heading) stack.push(heading);
+    direct.filter((item) => item !== headingHost).forEach((item) => stack.push(...convertNode(item)));
+    if (!stack.length) return [];
+    return [{ stack, margin: [0, 0, 0, 9] }];
+  }
+
+  function genericBlock(node) {
+    const direct = children(node).filter((item) => nodeText(item));
+    if (!direct.length) return nodeText(node) ? [richText(node, { margin: [0, 1, 0, 6] })] : [];
+    return direct.flatMap((item) => convertNode(item));
+  }
+
+  function convertNode(node) {
+    if (!node || node.nodeType !== 1 || node.matches('.no-print,[data-internal-only],[aria-hidden="true"],button,input,textarea,select,script,style')) return [];
+    const tag = node.tagName.toLowerCase();
+    if (!nodeText(node) && tag !== 'hr') return [];
+    if (node.matches('.doc-cover,.rsc-pdf-cover') || (tag === 'header' && node.closest('.proposal-preview'))) return [coverBlock(node)];
+    if (node.matches('.doc-grid,.rsc-pdf-fields,.ext-compare-values')) return [fieldGrid(node, 2)].filter(Boolean);
+    if (node.matches('.doc-ratings,.rsc-pdf-kpis')) return [grid(children(node).filter((item) => nodeText(item)), Math.min(4, Math.max(1, children(node).length)), cardCell)].filter(Boolean);
+    if (node.matches('.doc-scenarios,.rsc-pdf-comparison,.ext-comparison-grid,.nch-investment-comparison')) return [cardGrid(node)].filter(Boolean);
+    if (node.matches('.doc-table-wrap,.rsc-pdf-table-wrap')) return [pdfTable(node.querySelector('table'))].filter(Boolean);
+    if (tag === 'table') return [pdfTable(node)].filter(Boolean);
+    if (node.matches('.doc-highlight,.rsc-pdf-disclaimer,.rsc-pdf-individual,.ext-comparison-reading')) return [calloutBlock(node)];
+    if (node.matches('.doc-chips')) return [chipsBlock(node)].filter(Boolean);
+    if (node.matches('.proposal-services,.nch-preview-services,.nch-report-financial-services,.nch-preview-payments')) return [serviceRows(node)].filter(Boolean);
+    if (node.matches('.proposal-grand-total')) return [totalBlock(node)];
+    if (node.matches('.rsc-pdf-inline-summary')) return [chipsBlock(node)].filter(Boolean);
+    if (node.matches('.doc-signature')) return [signatureBlock(node)];
+    if (tag === 'ol' || tag === 'ul') return [listBlock(node)];
+    if (tag === 'section') return sectionBlock(node);
+    if (/^h[1-6]$/.test(tag)) return [pdfText(nodeText(node), { color: PDF_COLORS.ink, fontSize: tag === 'h3' ? 10.5 : 9.5, bold: true, margin: [0, 7, 0, 5] })];
+    if (tag === 'p') return [richText(node, { margin: [0, 1, 0, 7] })];
+    if (tag === 'small') return [richText(node, { color: PDF_COLORS.muted, fontSize: 7, margin: [0, 1, 0, 5] })];
+    if (tag === 'footer') return [pdfText(nodeText(node), { color: PDF_COLORS.muted, fontSize: 7, alignment: 'center', lineHeight: 1.35, margin: [0, 14, 0, 2] })];
+    if (tag === 'dl') return [definitionRows(node)].filter(Boolean);
+    return genericBlock(node);
+  }
+
+  function documentContent(root) {
+    const content = [];
+    children(root).forEach((node) => {
+      if (node.tagName === 'MAIN') children(node).forEach((child) => content.push(...convertNode(child)));
+      else content.push(...convertNode(node));
+    });
+    return content.filter(Boolean);
   }
 
   function pdfDocumentFromSource(source) {
-    const root = printableClone(source);
-    const content = [];
-    const seen = new Set();
-    root.querySelectorAll('h1,h2,h3,h4,p,li,table,[class*="highlight"],[class*="scenario"],[class*="disclaimer"],[class*="conclusion"],[class*="proposal-services"],[class*="rsc-pdf-card"],[class*="rsc-pdf-kpi"],[class*="rsc-pdf-field"]').forEach((node) => {
-      if (seen.has(node) || [...seen].some((parent) => parent.contains(node))) return;
-      seen.add(node);
-      const block = pdfBlock(node);
-      if (block) content.push(block);
-    });
-    if (!content.length || text(root.textContent).length < 80) throw new Error('O relatório não terminou de montar. Atualize a prévia e tente gerar novamente.');
+    const clone = printableClone(source);
+    const root = clone.matches('.generated-document,.proposal-preview')
+      ? clone
+      : clone.querySelector('.generated-document,.proposal-preview') || clone;
+    if (text(root.textContent).length < 80) throw new Error('O relatório não terminou de montar. Atualize a prévia e tente gerar novamente.');
+    const content = documentContent(root);
+    if (!content.length) throw new Error('O relatório não terminou de montar. Atualize a prévia e tente gerar novamente.');
     const title = nodeText(root.querySelector('h1,h2')) || 'Relatório Estratégico Empresarial';
     return {
-      pageSize: 'A4', pageMargins: [38, 42, 38, 42],
+      pageSize: 'A4',
+      pageMargins: [34, 32, 34, 32],
       info: { title, author: 'Radar Estratégico Empresarial', subject: 'Documento estratégico' },
-      defaultStyle: { font: 'Roboto', fontSize: 9, color: '#334e5a' },
-      header: (page) => page > 1 ? { text: 'RADAR ESTRATÉGICO EMPRESARIAL', alignment: 'right', margin: [0, 16, 38, 0], color: '#738d95', fontSize: 7, bold: true } : '',
-      footer: (page, pages) => ({ text: `Documento estratégico · Página ${page} de ${pages}`, alignment: 'center', margin: [0, 0, 0, 16], color: '#738d95', fontSize: 7 }),
+      defaultStyle: { font: 'Roboto', fontSize: 9, color: PDF_COLORS.body },
+      styles: {
+        sectionTitle: { fontSize: 12.5, bold: true, color: PDF_COLORS.ink, lineHeight: 1.05 },
+        label: { fontSize: 6.8, bold: true, color: PDF_COLORS.muted, characterSpacing: 0.5 },
+        fieldValue: { fontSize: 8.3, bold: true, color: PDF_COLORS.ink }
+      },
+      header: (page) => page > 1 ? { text: 'RADAR ESTRATÉGICO EMPRESARIAL', alignment: 'right', margin: [0, 16, 36, 0], color: PDF_COLORS.muted, fontSize: 6.5, bold: true, characterSpacing: 0.7 } : '',
+      footer: (page, pages) => ({ text: `Documento estratégico · Página ${page} de ${pages}`, alignment: 'center', margin: [0, 0, 0, 15], color: PDF_COLORS.muted, fontSize: 6.5 }),
+      pageBreakBefore: (currentNode, followingNodesOnPage) => currentNode.style === 'sectionTitle' && followingNodesOnPage.length === 0,
       content
     };
   }
@@ -571,6 +934,7 @@
   if (app) new MutationObserver(scheduleMount).observe(app, { childList: true, subtree: true });
   window.RadarDocumentDelivery = {
     ...(window.RadarDocumentDelivery || {}),
+    buildPdfDefinition: pdfDocumentFromSource,
     downloadElementPdf
   };
   window.addEventListener('radar:cloud-synced', scheduleMount);

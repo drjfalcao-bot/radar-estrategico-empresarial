@@ -39,21 +39,25 @@ test('análise acompanhada deixa os três blocos fechados por padrão', () => {
 });
 
 test('release pública carrega o módulo de contato e recolhimento', () => {
-  assert.match(index, /2026\.07\.21-cloud\.10/);
+  assert.match(index, /2026\.07\.21-cloud\.11-pdf/);
   assert.match(index, /cloud\/case-contact-ui\.js\?v=20260721-cloud3/);
 });
 
 test('download da proposta usa PDF direto com texto vetorial', () => {
   assert.match(delivery, /cdn\.jsdelivr\.net\/npm\/pdfmake@0\.2\.10/);
   assert.doesNotMatch(delivery, /cdnjs\.cloudflare\.com/);
-  assert.match(index, /cloud\/document-delivery\.js\?v=20260721-cloud11/);
+  assert.match(index, /cloud\/document-delivery\.js\?v=20260721-cloud12/);
 });
 
-test('PDF é estruturado como documento, sem captura PNG', () => {
+test('PDF é estruturado como documento vetorial e preserva a composição visual', () => {
   assert.match(delivery, /pdfDocumentFromSource\(source\)/);
   assert.match(delivery, /window\.pdfMake\.createPdf\(definition\)\.getBlob/);
   assert.match(delivery, /pageSize: 'A4'/);
   assert.match(delivery, /dontBreakRows: true/);
+  assert.match(delivery, /function coverBlock\(header\)/);
+  assert.match(delivery, /function cardGrid\(node\)/);
+  assert.match(delivery, /function signatureBlock\(node\)/);
+  assert.match(delivery, /buildPdfDefinition: pdfDocumentFromSource/);
   assert.doesNotMatch(delivery, /html2canvas/);
   assert.doesNotMatch(delivery, /image: \{ type: 'png'/);
   assert.match(delivery, /blob\.size < 1500/);
