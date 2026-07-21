@@ -287,6 +287,7 @@
     const preview = builder.querySelector('#ext-report-preview');
     if (!preview || !window.RadarDocumentBuilder?.buildReport) return;
     preview.innerHTML = window.RadarDocumentBuilder.buildReport(lead, config);
+    injectReportPreviewAddons(builder, lead);
     translateRiskLabels(preview);
     const documentNode = preview.querySelector('.generated-document');
     const download = window.RadarDocumentDelivery?.downloadElementPdf;
