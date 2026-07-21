@@ -48,7 +48,7 @@
       #${PANEL_ID} .rdd-status.success{background:#eaf8ef;color:#17653a}
       #${PANEL_ID} .rdd-status.error{background:#fff0f2;color:#9f1731}
       #${PANEL_ID} .rdd-status.warning{background:#fff7df;color:#765700}
-      .radar-pdf-stage{position:fixed!important;left:-100000px!important;top:0!important;width:900px!important;min-height:1123px!important;background:#fff!important;color:#0b2540!important;padding:0!important;box-sizing:border-box!important;z-index:-1!important}
+      .radar-pdf-stage{position:fixed!important;left:0!important;top:0!important;width:900px!important;min-height:1123px!important;background:#fff!important;color:#0b2540!important;padding:0!important;box-sizing:border-box!important;z-index:-2147483647!important;pointer-events:none!important;overflow:visible!important}
       .radar-pdf-stage *{box-sizing:border-box}
       .radar-pdf-stage button,.radar-pdf-stage input,.radar-pdf-stage select,.radar-pdf-stage textarea,.radar-pdf-stage .no-print,.radar-pdf-stage #${PANEL_ID}{display:none!important}
       .radar-pdf-stage .generated-document{width:900px!important;max-width:900px!important;margin:0!important;box-shadow:none!important}
@@ -339,6 +339,19 @@
     };
   }
 
+  async function waitForPdfStage(stage) {
+    if (document.fonts?.ready) {
+      try { await document.fonts.ready; } catch (_) {}
+    }
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const contentLength = text(stage.textContent).length;
+    const bounds = stage.getBoundingClientRect();
+    const height = Math.max(bounds.height, stage.scrollHeight);
+    if (contentLength < 80 || bounds.width < 300 || height < 120) {
+      throw new Error('O relatório não terminou de montar. Atualize a prévia e tente gerar novamente.');
+    }
+  }
+
   async function createPdfFromSource(source, filename) {
     if (!source) throw new Error('Não foi possível preparar o conteúdo do PDF.');
     await loadPdfLibrary();
@@ -347,7 +360,11 @@
     stage.appendChild(printableClone(source));
     document.body.appendChild(stage);
     try {
+      await waitForPdfStage(stage);
       const blob = await window.html2pdf().set(pdfOptions(filename)).from(stage).toPdf().outputPdf('blob');
+      if (!(blob instanceof Blob) || blob.size < 5000) {
+        throw new Error('O PDF foi gerado sem conteúdo. Atualize a prévia e tente novamente.');
+      }
       return { blob, filename };
     } finally {
       stage.remove();
