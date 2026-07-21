@@ -39,6 +39,12 @@ test('análise acompanhada deixa os três blocos fechados por padrão', () => {
 });
 
 test('release pública carrega o módulo de contato e recolhimento', () => {
-  assert.match(index, /2026\.07\.21-cloud\.5/);
+  assert.match(index, /2026\.07\.21-cloud\.6/);
   assert.match(index, /cloud\/case-contact-ui\.js\?v=20260721-cloud3/);
+});
+
+test('download da proposta usa o provedor já permitido pela aplicação', () => {
+  assert.match(delivery, /cdn\.jsdelivr\.net\/npm\/html2pdf\.js@0\.10\.3/);
+  assert.doesNotMatch(delivery, /cdnjs\.cloudflare\.com/);
+  assert.match(index, /cloud\/document-delivery\.js\?v=20260721-cloud6/);
 });
