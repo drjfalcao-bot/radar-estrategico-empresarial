@@ -6,6 +6,7 @@ const test = require('node:test');
 const root = path.resolve(__dirname, '..');
 const loader = fs.readFileSync(path.join(root, 'v3-loader.js'), 'utf8');
 const notebook = fs.readFileSync(path.join(root, 'cloud/notebook-commercial-hub.js'), 'utf8');
+const calculator = fs.readFileSync(path.join(root, 'cloud/strategic-calculator.js'), 'utf8');
 
 test('sincronização remota não reconstrói a ficha durante o preenchimento', () => {
   assert.match(loader, /state\.db = loadDB\(\)/);
@@ -20,4 +21,11 @@ test('Caderno inicia estratégia, relatório e proposta recolhidos', () => {
   assert.match(notebook, /data-nch-strategy/);
   assert.match(notebook, /data-nch-report/);
   assert.match(notebook, /data-nch-proposal/);
+});
+
+test('resumo automático usa o saldo após migração no card com estratégia', () => {
+  assert.match(calculator, /strategy\.querySelector\('h3'\)\.textContent = brl\(output\.strategicBalance\)/);
+  assert.match(calculator, /Saldo após migração e negociação/);
+  assert.match(calculator, /Migração RFB → PGFN/);
+  assert.doesNotMatch(calculator, /strategy\.querySelector\('h3'\)\.textContent = brl\(output\.totalDebt\)/);
 });

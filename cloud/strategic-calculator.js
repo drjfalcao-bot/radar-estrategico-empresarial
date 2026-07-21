@@ -387,6 +387,34 @@
         </main>
       </div>${advancedModal(state)}<div class="rsc-toast" role="status"></div>
     </div>`;
+    updateLegacyScenarioSummary(state, output);
+  }
+
+  function updateLegacyScenarioSummary(state, output) {
+    const strategy = [...document.querySelectorAll('.scenario-card.strategy')]
+      .find((card) => text(card.querySelector('span')?.textContent) === 'Com estratégia');
+    if (strategy) {
+      strategy.querySelector('h3').textContent = brl(output.strategicBalance);
+      const list = strategy.querySelector('ul');
+      if (list) {
+        const entry = output.migration.entry + output.pgfn.entry;
+        list.innerHTML = `<li>Entrada estimada: ${brl(entry)}</li><li>Redução potencial: ${brl(output.strategicReduction)}</li><li>Saldo após migração e negociação: ${brl(output.strategicBalance)}</li>`;
+      }
+      const copy = strategy.querySelector('p');
+      if (copy) copy.textContent = output.strategicReduction > 0
+        ? 'Saldo projetado após aplicar a migração da Receita e a negociação dos débitos inscritos, conforme as premissas atuais.'
+        : 'Não há redução parametrizada neste caso. O valor permanece nominal até existir cenário elegível de migração ou negociação.';
+    }
+
+    const highlight = document.querySelector('.scenario-highlight');
+    if (highlight && state.debts.rfb > 0) {
+      const title = highlight.querySelector('h2');
+      const reduction = highlight.querySelector('.scenario-highlight-value strong');
+      const note = highlight.querySelector('p');
+      if (title) title.textContent = 'Migração RFB → PGFN';
+      if (reduction) reduction.textContent = brl(output.strategicReduction);
+      if (note) note.textContent = 'Projeção do saldo após migração e aplicação das premissas de negociação, sujeita à elegibilidade e validação.';
+    }
   }
 
   function collectDebts(panel, lead) {
