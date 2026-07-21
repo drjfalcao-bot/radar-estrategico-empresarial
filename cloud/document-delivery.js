@@ -7,8 +7,9 @@
   const SIGNED_URL_SECONDS = 60 * 60 * 24 * 7;
   const CURRENT_KEYS = ['radar_current_case_id', 'radar_current_lead_id', 'radar_estrategico_current_case_id'];
   const PDF_LIB_ID = 'radar-html2pdf-library';
-  const PDF_LIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-  const PDF_LIB_INTEGRITY = 'sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==';
+  // Usa o mesmo provedor já carregado pela aplicação para evitar bloqueios ao
+  // CDN anterior e mantém a versão fixada para não haver mudança inesperada.
+  const PDF_LIB_URL = 'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.3/dist/html2pdf.bundle.min.js';
 
   let mountFrame = 0;
   let saveTimer = 0;
@@ -290,6 +291,11 @@
     return new Promise((resolve, reject) => {
       const existing = document.getElementById(PDF_LIB_ID);
       if (existing) {
+        if (existing.dataset.failed === 'true') {
+          existing.remove();
+          reject(new Error('O gerador de PDF não foi carregado. Atualize a página e tente novamente.'));
+          return;
+        }
         existing.addEventListener('load', () => resolve(window.html2pdf), { once: true });
         existing.addEventListener('error', () => reject(new Error('Não foi possível carregar o gerador de PDF.')), { once: true });
         return;
@@ -297,11 +303,18 @@
       const script = document.createElement('script');
       script.id = PDF_LIB_ID;
       script.src = PDF_LIB_URL;
-      script.integrity = PDF_LIB_INTEGRITY;
-      script.crossOrigin = 'anonymous';
-      script.referrerPolicy = 'no-referrer';
-      script.onload = () => resolve(window.html2pdf);
-      script.onerror = () => reject(new Error('Não foi possível carregar o gerador de PDF.'));
+      script.onload = () => {
+        if (typeof window.html2pdf !== 'function') {
+          script.dataset.failed = 'true';
+          reject(new Error('O gerador de PDF foi carregado, mas não iniciou corretamente.'));
+          return;
+        }
+        resolve(window.html2pdf);
+      };
+      script.onerror = () => {
+        script.dataset.failed = 'true';
+        reject(new Error('Não foi possível carregar o gerador de PDF.'));
+      };
       document.head.appendChild(script);
     });
   }
