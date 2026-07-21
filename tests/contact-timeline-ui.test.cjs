@@ -43,18 +43,19 @@ test('release pública carrega o módulo de contato e recolhimento', () => {
   assert.match(index, /cloud\/case-contact-ui\.js\?v=20260721-cloud3/);
 });
 
-test('download da proposta usa o provedor já permitido pela aplicação', () => {
-  assert.match(delivery, /cdn\.jsdelivr\.net\/npm\/html2pdf\.js@0\.10\.3/);
+test('download da proposta usa PDF direto com texto vetorial', () => {
+  assert.match(delivery, /cdn\.jsdelivr\.net\/npm\/pdfmake@0\.2\.10/);
   assert.doesNotMatch(delivery, /cdnjs\.cloudflare\.com/);
-  assert.match(index, /cloud\/document-delivery\.js\?v=20260721-cloud10/);
+  assert.match(index, /cloud\/document-delivery\.js\?v=20260721-cloud11/);
 });
 
-test('PDF é renderizado dentro da área capturável e rejeita arquivo vazio', () => {
-  assert.match(delivery, /\.radar-pdf-stage\{position:fixed!important;left:0!important;top:0!important/);
-  assert.doesNotMatch(delivery, /left:-100000px/);
-  assert.match(delivery, /waitForPdfStage\(stage\)/);
-  assert.match(delivery, /blob\.size < 5000/);
+test('PDF é estruturado como documento, sem captura PNG', () => {
+  assert.match(delivery, /pdfDocumentFromSource\(source\)/);
+  assert.match(delivery, /window\.pdfMake\.createPdf\(definition\)\.getBlob/);
+  assert.match(delivery, /pageSize: 'A4'/);
+  assert.match(delivery, /dontBreakRows: true/);
+  assert.doesNotMatch(delivery, /html2canvas/);
+  assert.doesNotMatch(delivery, /image: \{ type: 'png'/);
+  assert.match(delivery, /blob\.size < 1500/);
   assert.match(delivery, /O PDF foi gerado sem conteúdo/);
-  assert.match(delivery, /image: \{ type: 'png', quality: 1 \}/);
-  assert.match(delivery, /scale: 2\.5/);
 });

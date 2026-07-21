@@ -6,10 +6,12 @@
   const BUCKET = 'client-documents';
   const SIGNED_URL_SECONDS = 60 * 60 * 24 * 7;
   const CURRENT_KEYS = ['radar_current_case_id', 'radar_current_lead_id', 'radar_estrategico_current_case_id'];
-  const PDF_LIB_ID = 'radar-html2pdf-library';
-  // Usa o mesmo provedor já carregado pela aplicação para evitar bloqueios ao
-  // CDN anterior e mantém a versão fixada para não haver mudança inesperada.
-  const PDF_LIB_URL = 'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.3/dist/html2pdf.bundle.min.js';
+  const PDF_LIB_ID = 'radar-pdfmake-library';
+  // pdfMake escreve texto, linhas e tabelas diretamente no PDF. Diferentemente
+  // do html2pdf, ele não converte a página em PNG antes do download.
+  const PDF_LIB_URL = 'https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/pdfmake.min.js';
+  const PDF_FONTS_ID = 'radar-pdfmake-fonts';
+  const PDF_FONTS_URL = 'https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/vfs_fonts.js';
 
   let mountFrame = 0;
   let saveTimer = 0;
@@ -48,16 +50,6 @@
       #${PANEL_ID} .rdd-status.success{background:#eaf8ef;color:#17653a}
       #${PANEL_ID} .rdd-status.error{background:#fff0f2;color:#9f1731}
       #${PANEL_ID} .rdd-status.warning{background:#fff7df;color:#765700}
-      .radar-pdf-stage{position:fixed!important;left:0!important;top:0!important;width:900px!important;min-height:1123px!important;background:#fff!important;color:#0b2540!important;padding:0!important;box-sizing:border-box!important;z-index:-2147483647!important;pointer-events:none!important;overflow:visible!important}
-      .radar-pdf-stage *{box-sizing:border-box}
-      .radar-pdf-stage button,.radar-pdf-stage input,.radar-pdf-stage select,.radar-pdf-stage textarea,.radar-pdf-stage .no-print,.radar-pdf-stage #${PANEL_ID}{display:none!important}
-      .radar-pdf-stage .generated-document{width:900px!important;max-width:900px!important;margin:0!important;box-shadow:none!important}
-      .radar-pdf-stage .doc-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-      .radar-pdf-stage .doc-ratings{grid-template-columns:repeat(4,minmax(0,1fr))!important}
-      .radar-pdf-stage .doc-scenarios,.radar-pdf-stage .ext-comparison-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
-      .radar-pdf-stage .doc-section{break-inside:auto!important;page-break-inside:auto!important}
-      .radar-pdf-stage .doc-section>h2{break-after:avoid!important;page-break-after:avoid!important}
-      .radar-pdf-stage .doc-grid>div,.radar-pdf-stage .doc-ratings>article,.radar-pdf-stage .doc-scenario,.radar-pdf-stage .doc-highlight,.radar-pdf-stage tr{break-inside:avoid!important;page-break-inside:avoid!important}
       @media(max-width:760px){#${PANEL_ID} .rdd-grid{grid-template-columns:1fr}#${PANEL_ID} label.rdd-wide{grid-column:auto}#${PANEL_ID} .rdd-head{display:block}#${PANEL_ID} .rdd-badge{display:inline-block;margin-top:10px}}
       @media print{#${PANEL_ID}{display:none!important}}
     `;
@@ -287,7 +279,7 @@
   }
 
   function loadPdfLibrary() {
-    if (window.html2pdf) return Promise.resolve(window.html2pdf);
+    if (window.pdfMake?.createPdf) return Promise.resolve(window.pdfMake);
     return new Promise((resolve, reject) => {
       const existing = document.getElementById(PDF_LIB_ID);
       if (existing) {
@@ -296,7 +288,7 @@
           reject(new Error('O gerador de PDF não foi carregado. Atualize a página e tente novamente.'));
           return;
         }
-        existing.addEventListener('load', () => resolve(window.html2pdf), { once: true });
+        existing.addEventListener('load', () => resolve(window.pdfMake), { once: true });
         existing.addEventListener('error', () => reject(new Error('Não foi possível carregar o gerador de PDF.')), { once: true });
         return;
       }
@@ -304,12 +296,17 @@
       script.id = PDF_LIB_ID;
       script.src = PDF_LIB_URL;
       script.onload = () => {
-        if (typeof window.html2pdf !== 'function') {
+        if (!window.pdfMake?.createPdf) {
           script.dataset.failed = 'true';
           reject(new Error('O gerador de PDF foi carregado, mas não iniciou corretamente.'));
           return;
         }
-        resolve(window.html2pdf);
+        const fonts = document.createElement('script');
+        fonts.id = PDF_FONTS_ID;
+        fonts.src = PDF_FONTS_URL;
+        fonts.onload = () => resolve(window.pdfMake);
+        fonts.onerror = () => reject(new Error('Não foi possível carregar as fontes do PDF.'));
+        document.head.appendChild(fonts);
       };
       script.onerror = () => {
         script.dataset.failed = 'true';
@@ -328,50 +325,67 @@
     return `${prefix}-${slug(lead.companyName || 'empresa')}-${new Date().toISOString().slice(0, 10)}.pdf`;
   }
 
-  function pdfOptions(filename) {
-    return {
-      margin: [9, 8, 9, 8],
-      filename,
-      // PNG elimina os artefatos de compressão do JPEG. A escala de 2,5 produz
-      // aproximadamente 300 dpi na página A4 sem extrapolar o limite de canvas
-      // dos navegadores nos relatórios mais longos.
-      image: { type: 'png', quality: 1 },
-      html2canvas: { scale: 2.5, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1200, letterRendering: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.doc-grid > div', '.doc-ratings > article', '.doc-scenario', '.doc-highlight', '.proposal-services > article', '.nch-preview-payments > article', '.rsc-pdf-card', '.rsc-pdf-kpi'] }
-    };
+  function nodeText(node) { return text(node?.textContent); }
+
+  function pdfText(value, options = {}) {
+    return { text: text(value), fontSize: 9, color: '#334e5a', lineHeight: 1.25, ...options };
   }
 
-  async function waitForPdfStage(stage) {
-    if (document.fonts?.ready) {
-      try { await document.fonts.ready; } catch (_) {}
-    }
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const contentLength = text(stage.textContent).length;
-    const bounds = stage.getBoundingClientRect();
-    const height = Math.max(bounds.height, stage.scrollHeight);
-    if (contentLength < 80 || bounds.width < 300 || height < 120) {
-      throw new Error('O relatório não terminou de montar. Atualize a prévia e tente gerar novamente.');
-    }
+  function pdfTable(table) {
+    const rows = [...table.querySelectorAll('tr')].map((row) => [...row.children].map((cell) => pdfText(cell, {
+      bold: cell.tagName === 'TH' || !!cell.querySelector('strong'),
+      color: cell.tagName === 'TH' ? '#315260' : '#243e49',
+      fillColor: cell.tagName === 'TH' ? '#eaf3f5' : undefined,
+      fontSize: cell.tagName === 'TH' ? 7 : 8,
+      margin: [5, 5, 5, 5]
+    })));
+    if (!rows.length) return null;
+    return { table: { headerRows: table.querySelector('thead') ? 1 : 0, widths: Array(rows[0].length).fill('*'), body: rows }, layout: { hLineColor: () => '#d9e5e8', vLineColor: () => '#d9e5e8', paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 }, margin: [0, 4, 0, 11], dontBreakRows: true };
+  }
+
+  function pdfBlock(node) {
+    const tag = node.tagName?.toLowerCase();
+    const value = nodeText(node);
+    if (!value) return null;
+    if (tag === 'table') return pdfTable(node);
+    if (/^h[1-6]$/.test(tag)) return pdfText(value, { fontSize: tag === 'h1' ? 21 : tag === 'h2' ? 15 : 11, bold: true, color: '#092f3b', margin: [0, tag === 'h1' ? 0 : 13, 0, 6], pageBreak: node.closest('.generated-document') && tag === 'h1' ? undefined : undefined });
+    if (tag === 'li') return { text: [{ text: '• ', color: '#14885e' }, { text: value }], fontSize: 9, color: '#334e5a', margin: [8, 2, 0, 2] };
+    if (tag === 'p') return pdfText(value, { margin: [0, 2, 0, 7] });
+    if (tag === 'strong' || tag === 'b') return pdfText(value, { bold: true });
+    return pdfText(value, { margin: [0, 2, 0, 4] });
+  }
+
+  function pdfDocumentFromSource(source) {
+    const root = printableClone(source);
+    const content = [];
+    const seen = new Set();
+    root.querySelectorAll('h1,h2,h3,h4,p,li,table,[class*="highlight"],[class*="scenario"],[class*="disclaimer"],[class*="conclusion"],[class*="proposal-services"],[class*="rsc-pdf-card"],[class*="rsc-pdf-kpi"],[class*="rsc-pdf-field"]').forEach((node) => {
+      if (seen.has(node) || [...seen].some((parent) => parent.contains(node))) return;
+      seen.add(node);
+      const block = pdfBlock(node);
+      if (block) content.push(block);
+    });
+    if (!content.length || text(root.textContent).length < 80) throw new Error('O relatório não terminou de montar. Atualize a prévia e tente gerar novamente.');
+    const title = nodeText(root.querySelector('h1,h2')) || 'Relatório Estratégico Empresarial';
+    return {
+      pageSize: 'A4', pageMargins: [38, 42, 38, 42],
+      info: { title, author: 'Radar Estratégico Empresarial', subject: 'Documento estratégico' },
+      defaultStyle: { font: 'Roboto', fontSize: 9, color: '#334e5a' },
+      header: (page) => page > 1 ? { text: 'RADAR ESTRATÉGICO EMPRESARIAL', alignment: 'right', margin: [0, 16, 38, 0], color: '#738d95', fontSize: 7, bold: true } : '',
+      footer: (page, pages) => ({ text: `Documento estratégico · Página ${page} de ${pages}`, alignment: 'center', margin: [0, 0, 0, 16], color: '#738d95', fontSize: 7 }),
+      content
+    };
   }
 
   async function createPdfFromSource(source, filename) {
     if (!source) throw new Error('Não foi possível preparar o conteúdo do PDF.');
     await loadPdfLibrary();
-    const stage = document.createElement('div');
-    stage.className = 'radar-pdf-stage';
-    stage.appendChild(printableClone(source));
-    document.body.appendChild(stage);
-    try {
-      await waitForPdfStage(stage);
-      const blob = await window.html2pdf().set(pdfOptions(filename)).from(stage).toPdf().outputPdf('blob');
-      if (!(blob instanceof Blob) || blob.size < 5000) {
-        throw new Error('O PDF foi gerado sem conteúdo. Atualize a prévia e tente novamente.');
-      }
-      return { blob, filename };
-    } finally {
-      stage.remove();
-    }
+    const definition = pdfDocumentFromSource(source);
+    const blob = await new Promise((resolve, reject) => {
+      try { window.pdfMake.createPdf(definition).getBlob(resolve); } catch (error) { reject(error); }
+    });
+    if (!(blob instanceof Blob) || blob.size < 1500) throw new Error('O PDF foi gerado sem conteúdo. Atualize a prévia e tente novamente.');
+    return { blob, filename };
   }
 
   async function createPdf(type, lead) {
