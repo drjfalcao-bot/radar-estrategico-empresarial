@@ -39,6 +39,6 @@ test('análise acompanhada deixa os três blocos fechados por padrão', () => {
 });
 
 test('release pública carrega o módulo de contato e recolhimento', () => {
-  assert.match(index, /2026\.07\.21-cloud\.3/);
+  assert.match(index, /2026\.07\.21-cloud\.4/);
   assert.match(index, /cloud\/case-contact-ui\.js\?v=20260721-cloud3/);
 });
