@@ -36,6 +36,8 @@
       #${PANEL_ID} input,#${PANEL_ID} select,#${PANEL_ID} textarea{width:100%;box-sizing:border-box;border:1px solid #cddbe5;border-radius:10px;background:#fff;padding:11px 12px;color:#0b2540;font:inherit;font-size:13px;outline:none}
       #${PANEL_ID} textarea{min-height:78px;resize:vertical;line-height:1.45}
       #${PANEL_ID} input:focus,#${PANEL_ID} select:focus,#${PANEL_ID} textarea:focus{border-color:#159bd7;box-shadow:0 0 0 3px rgba(21,155,215,.12)}
+      #${PANEL_ID} input[aria-invalid="true"]{border-color:#b4233c;background:#fff8f9;box-shadow:0 0 0 3px rgba(180,35,60,.1)}
+      #${PANEL_ID} .rdd-required{color:#b4233c;font-weight:900}
       #${PANEL_ID} .rdd-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
       #${PANEL_ID} button{border:0;border-radius:10px;padding:11px 16px;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
       #${PANEL_ID} button[data-rdd-pdf]{background:#eaf2f7;color:#0b4c72}
@@ -137,7 +139,7 @@
 
   function buildPanel(ctx) {
     const lead = ctx.lead;
-    const responsibleName = lead.companyResponsibleName || lead.responsibleName || lead.contactName || lead.decisionMaker || '';
+    const responsibleName = lead.companyResponsibleName || lead.responsibleName || lead.contactName || lead.decisionMakerName || '';
     const whatsapp = lead.companyResponsibleWhatsapp || lead.whatsapp || lead.contactPhone || lead.phone || '';
     const message = lead.documentDeliveryMessage || defaultMessage(lead, responsibleName);
     const panel = document.createElement('section');
@@ -149,8 +151,8 @@
         <span class="rdd-badge">Link válido por 7 dias</span>
       </div>
       <div class="rdd-grid">
-        <label><span>Responsável da empresa</span><input name="rddResponsible" value="${esc(responsibleName)}" placeholder="Nome do contato"></label>
-        <label><span>WhatsApp do responsável</span><input name="rddWhatsapp" value="${esc(whatsapp)}" inputmode="tel" placeholder="Ex.: 51 99999-9999"></label>
+        <label><span>Nome do decisor <b class="rdd-required">*</b></span><input name="rddResponsible" value="${esc(responsibleName)}" placeholder="Nome de quem decide pela empresa" required aria-required="true"></label>
+        <label><span>Telefone do decisor <b class="rdd-required">*</b></span><input name="rddWhatsapp" value="${esc(whatsapp)}" inputmode="tel" placeholder="Ex.: 51 99999-9999" required aria-required="true"></label>
         <label><span>Documento</span><select name="rddDocument"><option value="report">Relatório do caso</option><option value="proposal">Proposta financeira</option></select></label>
         <label><span>Empresa</span><input value="${esc(lead.companyName || 'Empresa não identificada')}" disabled></label>
         <label class="rdd-wide"><span>Mensagem do WhatsApp</span><textarea name="rddMessage">${esc(message)}</textarea></label>
@@ -176,6 +178,9 @@
     const whatsapp = text(panel.querySelector('[name="rddWhatsapp"]')?.value);
     const message = String(panel.querySelector('[name="rddMessage"]')?.value || '').trim();
     Object.assign(ctx.lead, {
+      contactName: responsibleName,
+      phone: whatsapp,
+      contactPhone: whatsapp,
       companyResponsibleName: responsibleName,
       companyResponsibleWhatsapp: whatsapp,
       documentDeliveryMessage: message,
@@ -408,6 +413,19 @@
     };
   }
 
+  function validateDecisionMakerContact(panel, data) {
+    const nameInput = panel.querySelector('[name="rddResponsible"]');
+    const phoneInput = panel.querySelector('[name="rddWhatsapp"]');
+    const missingName = !data.responsibleName;
+    const missingPhone = !digits(data.whatsappInput);
+    nameInput?.setAttribute('aria-invalid', String(missingName));
+    phoneInput?.setAttribute('aria-invalid', String(missingPhone));
+    if (!missingName && !missingPhone) return true;
+    setStatus(panel, 'Envio do whatsapp requer contato do decisor', 'error');
+    (missingName ? nameInput : phoneInput)?.focus();
+    return false;
+  }
+
   async function handlePdf(panel, button) {
     const ctx = currentContext();
     if (!ctx?.lead) return setStatus(panel, 'Não foi possível identificar o caso atual.', 'error');
@@ -432,11 +450,12 @@
     const ctx = currentContext();
     if (!ctx?.lead) return setStatus(panel, 'Não foi possível identificar o caso atual.', 'error');
     persistPanel(panel);
+    const data = panelData(panel);
+    if (!validateDecisionMakerContact(panel, data)) return;
     const popup = window.open('about:blank', '_blank');
     button.disabled = true;
     setStatus(panel, 'Gerando o PDF e preparando o link privado...', 'warning');
     try {
-      const data = panelData(panel);
       const whatsapp = normalizeWhatsapp(data.whatsappInput);
       const pdf = await createPdf(data.type, ctx.lead);
       const uploaded = await uploadPdf(pdf.blob, pdf.filename, ctx.lead);
@@ -464,7 +483,10 @@
   }
 
   function bindPanel(panel) {
-    panel.addEventListener('input', () => schedulePersist(panel));
+    panel.addEventListener('input', (event) => {
+      event.target?.removeAttribute?.('aria-invalid');
+      schedulePersist(panel);
+    });
     panel.addEventListener('change', () => schedulePersist(panel));
     panel.querySelector('[data-rdd-pdf]')?.addEventListener('click', (event) => handlePdf(panel, event.currentTarget));
     panel.querySelector('[data-rdd-whatsapp]')?.addEventListener('click', (event) => handleWhatsapp(panel, event.currentTarget));
