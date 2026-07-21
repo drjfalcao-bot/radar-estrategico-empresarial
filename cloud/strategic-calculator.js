@@ -717,6 +717,16 @@
     requestAnimationFrame(mount);
   }
 
+  // Rebuilds every report-facing field from the current calculator state.
+  // The Caderno calls this immediately before opening the report builder so
+  // it never receives an older copy of the selected comparison.
+  function syncReportData() {
+    const ctx = context();
+    if (!ctx?.lead) return null;
+    persist(ctx);
+    return ctx.lead;
+  }
+
   document.addEventListener('click', (event) => {
     const target = event.target.closest('button,a,[role="tab"]');
     if (target && ['Cenários', 'Simulações'].includes(text(target.textContent))) {
@@ -730,6 +740,6 @@
   setTimeout(schedule, 1200);
   [500, 1200, 2500].forEach((delay) => setTimeout(patchCadernoCompatibility, delay));
 
-  window.RadarStrategicCalculator = { mount: schedule, getContext: context, calculate };
+  window.RadarStrategicCalculator = { mount: schedule, getContext: context, calculate, syncReportData };
   window.RadarSimulationsConsolidation = { reconcile: schedule };
 })();
