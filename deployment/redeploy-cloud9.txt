@@ -1,0 +1,3 @@
+Republicação controlada da versão estável cloud.9.
+Objetivo: disparar o workflow normal de validação e GitHub Pages sem alterar a lógica da aplicação.
+Data: 2026-07-21.
