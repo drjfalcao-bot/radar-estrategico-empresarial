@@ -64,3 +64,19 @@ test('proposta compara investimento e desconto e pode ser incorporada ao relató
   assert.match(notebook, /caseReportFinancialSnapshot/);
   assert.match(notebook, /data-case-financial-summary/);
 });
+
+test('construtor do relatório permite montar e incluir custos no parecer', () => {
+  assert.match(notebook, /name="showCosts"/);
+  assert.match(notebook, /Custos e proposta de atuação/);
+  assert.match(notebook, /data-nch-edit-report-costs/);
+  assert.match(notebook, /Montar custos/);
+  assert.match(notebook, /reportShowsCosts/);
+  assert.match(notebook, /caseReportFinancialHtml\(lead, config\)/);
+});
+
+test('PDF do construtor usa o relatório completo com a composição financeira', () => {
+  assert.match(notebook, /data-report-print/);
+  assert.match(notebook, /downloadReportFromBuilder/);
+  assert.match(notebook, /RadarDocumentDelivery\?\.downloadElementPdf/);
+  assert.match(notebook, /Relatorio_Estrategico_/);
+});
