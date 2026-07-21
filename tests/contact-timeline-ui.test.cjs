@@ -30,7 +30,15 @@ test('WhatsApp bloqueia envio sem contato completo do decisor', () => {
   assert.doesNotMatch(delivery, /lead\.contactName \|\| lead\.decisionMaker \|\|/);
 });
 
+test('análise acompanhada deixa os três blocos fechados por padrão', () => {
+  assert.match(contactUi, /Reforma Tributária/);
+  assert.match(contactUi, /Passivo Fiscal/);
+  assert.match(contactUi, /Cobrança, Execução e Exposição/);
+  assert.match(contactUi, /radar-analysis-collapsible/);
+  assert.match(contactUi, /aria-expanded', 'false'/);
+});
+
 test('release pública carrega o módulo de contato e recolhimento', () => {
-  assert.match(index, /2026\.07\.21-cloud\.2/);
-  assert.match(index, /cloud\/case-contact-ui\.js\?v=20260721-cloud2/);
+  assert.match(index, /2026\.07\.21-cloud\.3/);
+  assert.match(index, /cloud\/case-contact-ui\.js\?v=20260721-cloud3/);
 });
