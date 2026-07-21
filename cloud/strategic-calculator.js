@@ -511,6 +511,15 @@
       reportStrategicStatement: `Com a estratégia certa, o potencial de redução é de ${brl(potential)}`,
       reportPotentialReduction: potential,
       reportSelectedScenarios: simulations.filter((item) => item.id !== 'strategic_total'),
+      reportComparison: {
+        generatedAt: now,
+        selections: [...state.selections],
+        totalDebt: output.totalDebt,
+        strategicReduction: output.strategicReduction,
+        strategicBalance: output.strategicBalance,
+        rfb: { ...output.rfb },
+        migration: { ...output.migration }
+      },
       selectedScenarioId: state.selections.length ? `strategic:${state.selections.join('+')}` : '',
       simulations,
       ratings,
@@ -717,6 +726,16 @@
     requestAnimationFrame(mount);
   }
 
+  // Rebuilds every report-facing field from the current calculator state.
+  // The Caderno calls this immediately before opening the report builder so
+  // it never receives an older copy of the selected comparison.
+  function syncReportData() {
+    const ctx = context();
+    if (!ctx?.lead) return null;
+    persist(ctx);
+    return ctx.lead;
+  }
+
   document.addEventListener('click', (event) => {
     const target = event.target.closest('button,a,[role="tab"]');
     if (target && ['Cenários', 'Simulações'].includes(text(target.textContent))) {
@@ -730,6 +749,6 @@
   setTimeout(schedule, 1200);
   [500, 1200, 2500].forEach((delay) => setTimeout(patchCadernoCompatibility, delay));
 
-  window.RadarStrategicCalculator = { mount: schedule, getContext: context, calculate };
+  window.RadarStrategicCalculator = { mount: schedule, getContext: context, calculate, syncReportData };
   window.RadarSimulationsConsolidation = { reconcile: schedule };
 })();
