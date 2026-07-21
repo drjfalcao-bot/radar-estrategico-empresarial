@@ -137,6 +137,12 @@
     builder.dataset.radarReportOnly = 'true';
     builder.querySelector('[data-doc-tab="proposal"]')?.remove();
     builder.querySelector('.ext-builder-tabs')?.remove();
+    const ctx = context();
+    if (ctx?.lead) {
+      injectReportCostsControls(builder, ctx.lead);
+      bindReportBuilderEnhancements(builder, ctx.lead);
+      injectReportPreviewAddons(builder, ctx.lead);
+    }
     return true;
   }
 
@@ -163,16 +169,194 @@
     else main.insertAdjacentHTML('beforeend', html);
   }
 
+  function financialSnapshot(lead) {
+    const stored = lead?.caseReportFinancialSnapshot;
+    if (stored?.services?.length) return stored;
+
+    const commercial = lead?.commercialProposal;
+    if (commercial?.services?.length) {
+      const services = commercial.services.filter((service) => service.included !== false);
+      const investment = services.reduce((sum, service) => sum + number(service.cost), 0);
+      return {
+        title: commercial.title || 'Proposta de Atuação Estratégica',
+        services,
+        investment,
+        attainableReduction: attainableReduction(lead),
+        paymentMethods: (commercial.paymentMethods || []).filter((method) => method.enabled !== false),
+        paymentText: paymentText(commercial, investment),
+        validity: commercial.validity || '10 dias',
+        notes: commercial.notes || '',
+        updatedAt: commercial.updatedAt || ''
+      };
+    }
+
+    const legacy = lead?.proposalConfig;
+    if (!legacy?.services?.length) return null;
+    const services = legacy.services.map((service) => ({
+      id: service.id || uid('service'),
+      included: true,
+      category: service.category || service.type || 'custom',
+      name: service.description || 'Serviço indicado',
+      description: service.detail || 'Atuação conforme o escopo técnico definido.',
+      cost: Math.max(0, number(service.finalValue || service.base)),
+      billing: service.type === 'defense' ? 'mensal' : 'unico'
+    }));
+    return {
+      title: legacy.title || 'Proposta de Atuação Estratégica',
+      services,
+      investment: services.reduce((sum, service) => sum + number(service.cost), 0),
+      attainableReduction: attainableReduction(lead),
+      paymentMethods: [],
+      paymentText: legacy.paymentTerms || 'Condições a definir.',
+      validity: legacy.validity || '10 dias',
+      notes: legacy.notes || '',
+      updatedAt: ''
+    };
+  }
+
+  function reportShowsCosts(lead, config = {}) {
+    if (config.showCosts !== undefined) return Boolean(config.showCosts);
+    if (lead?.reportConfig?.showCosts !== undefined) return Boolean(lead.reportConfig.showCosts);
+    return Boolean(financialSnapshot(lead));
+  }
+
+  function reportCostsControlHtml(lead, checked) {
+    const snapshot = financialSnapshot(lead);
+    const count = snapshot?.services?.filter((service) => service.included !== false).length || 0;
+    return `<section class="nch-report-costs-editor" data-nch-report-costs-editor>
+      <div><span class="nch-kicker">Custos e proposta de atuação</span><h4>${snapshot ? 'Composição financeira disponível' : 'Composição financeira ainda não montada'}</h4><p>${snapshot ? `${count} item(ns) · investimento de ${money(snapshot.investment)} · desconto atingível de ${money(snapshot.attainableReduction)}` : 'Monte serviços, valores e formas de pagamento para poder incluí-los no final do parecer.'}</p></div>
+      <button type="button" data-nch-edit-report-costs>${snapshot ? 'Editar custos' : 'Montar custos'}</button>
+      <small>${checked ? 'O bloco será incluído no relatório.' : 'O bloco está fora do relatório.'}</small>
+    </section>`;
+  }
+
+  function injectReportCostsControls(builder, lead) {
+    const grid = builder?.querySelector('.ext-toggle-grid');
+    if (!grid) return;
+    const previous = builder.querySelector('[name="showCosts"]');
+    const checked = previous ? previous.checked : reportShowsCosts(lead, lead.reportConfig || {});
+    previous?.closest('.ext-doc-toggle')?.remove();
+    builder.querySelector('[data-nch-report-costs-editor]')?.remove();
+    grid.insertAdjacentHTML('beforeend', `<label class="ext-doc-toggle nch-report-cost-toggle"><input type="checkbox" name="showCosts" ${checked ? 'checked' : ''}><span><b>Custos e proposta de atuação</b><small>Serviços, investimento, desconto e pagamento</small></span></label>`);
+    const conclusion = builder.querySelector('[name="reportConclusion"]')?.closest('label');
+    if (conclusion) conclusion.insertAdjacentHTML('beforebegin', reportCostsControlHtml(lead, checked));
+  }
+
+  function collectLiveReportConfig(builder, lead) {
+    const config = { ...(lead?.reportConfig || {}) };
+    config.title = text(builder.querySelector('[name="reportTitle"]')?.value) || 'Relatório Estratégico Empresarial';
+    builder.querySelectorAll('.ext-toggle-grid input[type="checkbox"][name]').forEach((input) => {
+      config[input.name] = Boolean(input.checked);
+    });
+    config.conclusion = String(builder.querySelector('[name="reportConclusion"]')?.value || '').trim();
+    return config;
+  }
+
+  function injectReportFinancial(root, lead, config = {}) {
+    if (!root) return;
+    root.querySelectorAll('[data-case-financial-summary]').forEach((section) => section.remove());
+    if (!reportShowsCosts(lead, config)) return;
+    const main = root.querySelector('.generated-document main');
+    const html = caseReportFinancialHtml(lead, config);
+    if (!main || !html) return;
+    const conclusion = [...main.querySelectorAll('.doc-section')].find((section) => /^Conclusão$/i.test(text(section.querySelector('h2')?.textContent)));
+    if (conclusion) conclusion.insertAdjacentHTML('beforebegin', html);
+    else main.insertAdjacentHTML('beforeend', html);
+  }
+
+  function injectReportPreviewAddons(builder, lead) {
+    if (!builder || !lead) return;
+    const config = collectLiveReportConfig(builder, lead);
+    injectFullComparison(builder, lead);
+    injectReportFinancial(builder, lead, config);
+    translateRiskLabels(builder);
+  }
+
+  function saveReportCostsPreference(builder) {
+    const ctx = context();
+    if (!ctx?.lead) return;
+    ctx.lead.reportConfig = {
+      ...(ctx.lead.reportConfig || {}),
+      showCosts: Boolean(builder.querySelector('[name="showCosts"]')?.checked)
+    };
+    persist(ctx);
+  }
+
+  async function downloadReportFromBuilder(builder, lead) {
+    const config = collectLiveReportConfig(builder, lead);
+    const preview = builder.querySelector('#ext-report-preview');
+    if (!preview || !window.RadarDocumentBuilder?.buildReport) return;
+    preview.innerHTML = window.RadarDocumentBuilder.buildReport(lead, config);
+    translateRiskLabels(preview);
+    const documentNode = preview.querySelector('.generated-document');
+    const download = window.RadarDocumentDelivery?.downloadElementPdf;
+    if (!documentNode || !download) {
+      window.RadarExt?.toast?.('O gerador de PDF ainda está carregando. Tente novamente em instantes.', 'warn');
+      return;
+    }
+    const safeName = text(lead.companyName || 'empresa').replace(/[^a-zA-Z0-9À-ÿ_-]+/g, '_');
+    await download(documentNode, `Relatorio_Estrategico_${safeName}.pdf`);
+  }
+
+  function bindReportBuilderEnhancements(builder, lead) {
+    if (builder.dataset.nchCostsBound === 'true') return;
+    builder.dataset.nchCostsBound = 'true';
+    builder.addEventListener('change', (event) => {
+      if (!event.target.matches('[name="showCosts"]')) return;
+      const panel = builder.querySelector('[data-nch-report-costs-editor]');
+      panel?.querySelector('small')?.replaceChildren(event.target.checked ? 'O bloco será incluído no relatório.' : 'O bloco está fora do relatório.');
+      injectReportPreviewAddons(builder, lead);
+    });
+    builder.addEventListener('click', (event) => {
+      if (event.target.closest('[data-nch-edit-report-costs]')) {
+        event.preventDefault();
+        const toggle = builder.querySelector('[name="showCosts"]');
+        if (toggle) toggle.checked = true;
+        const status = builder.querySelector('[data-nch-report-costs-editor] > small');
+        if (status) status.textContent = 'O bloco será incluído no relatório.';
+        injectReportPreviewAddons(builder, lead);
+        openProposal();
+        return;
+      }
+      if (event.target.closest('[data-report-preview]')) {
+        setTimeout(() => injectReportPreviewAddons(builder, lead), 0);
+        return;
+      }
+      if (event.target.closest('[data-report-save]')) {
+        setTimeout(() => {
+          saveReportCostsPreference(builder);
+          injectReportPreviewAddons(builder, lead);
+        }, 0);
+      }
+    });
+    builder.addEventListener('click', (event) => {
+      if (!event.target.closest('[data-report-print]')) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      downloadReportFromBuilder(builder, lead).catch((error) => {
+        console.error('[Report costs PDF]', error);
+        window.RadarExt?.toast?.('Não foi possível gerar o PDF completo.', 'warn');
+      });
+    }, true);
+  }
+
   function patchDocumentBuilder() {
     const builder = window.RadarDocumentBuilder;
     if (!builder || builder.__fullComparisonPatched) return;
     const originalBuild = builder.buildReport?.bind(builder);
     if (originalBuild) builder.buildReport = (lead, config) => {
-      const report = originalBuild(lead, config);
-      const block = `${fullComparisonHtml(lead)}${caseReportFinancialHtml(lead)}`;
-      if (!block) return report;
-      const marker = '<section class="doc-section"><h2>Simulações consideradas</h2>';
-      return report.includes(marker) ? report.replace(marker, `${block}${marker}`) : report.replace('</main>', `${block}</main>`);
+      let report = originalBuild(lead, config);
+      const comparison = fullComparisonHtml(lead);
+      const simulationMarker = '<section class="doc-section"><h2>Simulações consideradas</h2>';
+      if (comparison) report = report.includes(simulationMarker)
+        ? report.replace(simulationMarker, `${comparison}${simulationMarker}`)
+        : report.replace('</main>', `${comparison}</main>`);
+      const financial = caseReportFinancialHtml(lead, config);
+      const conclusionMarker = '<section class="doc-section"><h2>Conclusão</h2>';
+      if (financial) report = report.includes(conclusionMarker)
+        ? report.replace(conclusionMarker, `${financial}${conclusionMarker}`)
+        : report.replace('</main>', `${financial}</main>`);
+      return report;
     };
     builder.__fullComparisonPatched = true;
   }
@@ -186,7 +370,7 @@
       window.RadarDocumentBuilder.open('report');
       restrictReportBuilder();
       const ctx = context();
-      setTimeout(() => injectFullComparison(document.getElementById('radar-doc-builder'), ctx?.lead), 20);
+      setTimeout(() => injectReportPreviewAddons(document.getElementById('radar-doc-builder'), ctx?.lead), 20);
       setTimeout(() => translateRiskLabels(document.getElementById('radar-doc-builder') || document), 50);
       return;
     }
@@ -379,8 +563,9 @@
       || number(lead?.diagnosticFinal?.reduction));
   }
 
-  function caseReportFinancialHtml(lead) {
-    const snapshot = lead?.caseReportFinancialSnapshot;
+  function caseReportFinancialHtml(lead, config = {}) {
+    if (!reportShowsCosts(lead, config)) return '';
+    const snapshot = financialSnapshot(lead);
     if (!snapshot?.services?.length) return '';
     const services = snapshot.services.filter((service) => service.included !== false);
     return `<section class="doc-section nch-case-financial" data-case-financial-summary><h2>Proposta de atuação — síntese financeira</h2><div class="nch-investment-comparison"><article><span>Investimento aplicado</span><strong>${money(snapshot.investment)}</strong></article><article class="benefit"><span>Desconto atingível</span><strong>${money(snapshot.attainableReduction)}</strong><small>Projeção condicionada à validação e implementação da estratégia.</small></article></div><h3>Escopo financeiro incorporado</h3><div class="nch-report-financial-services">${services.map((service) => `<div><span><strong>${esc(service.name)}</strong><small>${esc(service.description)}</small></span><b>${money(service.cost)}${service.billing === 'mensal' ? '/mês' : service.billing === 'exito' ? ' · êxito' : ''}</b></div>`).join('')}</div><h3>Condições de pagamento</h3><p>${esc(snapshot.paymentText || 'Condições a definir.')}</p>${snapshot.notes ? `<p><strong>Observações:</strong> ${esc(snapshot.notes)}</p>` : ''}</section>`;
@@ -496,6 +681,7 @@
         notes: state.notes,
         updatedAt: state.updatedAt
       };
+      ctx.lead.reportConfig = { ...(ctx.lead.reportConfig || {}), showCosts: true };
     }
     persist(ctx, { title: 'Proposta comercial atualizada', body: `${included.length} serviço(s) selecionado(s), total indicado de ${money(total)}.`, tags: ['proposta', 'estratégia'] });
     return state;
@@ -568,6 +754,15 @@
     return proposalPreview(lead, proposalState(lead, db));
   }
 
+  function refreshOpenReportBuilder() {
+    const builder = document.getElementById('radar-doc-builder');
+    const ctx = context();
+    if (!builder || !ctx?.lead) return;
+    injectReportCostsControls(builder, ctx.lead);
+    bindReportBuilderEnhancements(builder, ctx.lead);
+    injectReportPreviewAddons(builder, ctx.lead);
+  }
+
   function schedule() {
     if (scheduled) return;
     scheduled = true;
@@ -584,7 +779,10 @@
     }
   }, true);
   window.addEventListener('radar:cloud-synced', schedule);
-  window.addEventListener('radar:case-updated', schedule);
+  window.addEventListener('radar:case-updated', () => {
+    schedule();
+    setTimeout(refreshOpenReportBuilder, 30);
+  });
   window.addEventListener('load', schedule);
   [800, 1500, 2600].forEach((delay) => setTimeout(schedule, delay));
 
