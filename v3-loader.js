@@ -45,7 +45,10 @@
       state.currentId = null;
       state.view = 'dashboard';
     }
-    render();
+    // A atualização remota não deve reconstruir fichas enquanto o usuário
+    // preenche dados. O estado já foi atualizado acima; só listas que precisam
+    // exibir leads de terceiros são redesenhadas automaticamente.
+    if (state.view === 'dashboard' || state.view === 'pipeline') render();
   });
 
   render();

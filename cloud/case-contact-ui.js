@@ -19,6 +19,10 @@
       .radar-timeline-panel:not(.is-open) .note-tools,
       .radar-timeline-panel:not(.is-open) .timeline{display:none!important}
       .radar-timeline-panel:not(.is-open){align-self:start}
+      .radar-analysis-collapsible>.radar-section-content{display:none!important}
+      .radar-analysis-collapsible.is-open>.radar-section-content{display:block!important}
+      .radar-analysis-collapsible>.subhead{cursor:pointer;user-select:none}
+      .radar-analysis-toggle{margin-left:auto;border:1px solid #cddde7;border-radius:9px;background:#edf5f9;color:#0a557e;padding:8px 11px;font:800 10px/1 Inter,Arial,sans-serif;cursor:pointer;white-space:nowrap}
       @media(max-width:760px){.radar-timeline-panel .panel-head{align-items:flex-start}.radar-timeline-panel .radar-timeline-toggle{margin-top:8px}}
     `;
     document.head.appendChild(style);
@@ -142,10 +146,47 @@
     panel.querySelector('.panel-head')?.appendChild(button);
   }
 
+  function collapseAnalysisSections() {
+    const activeAnalysis = [...document.querySelectorAll('button,a,[role="tab"]')]
+      .find((node) => text(node.textContent) === 'Análise acompanhada' && (
+        node.classList.contains('active') || node.classList.contains('is-active') || node.getAttribute('aria-selected') === 'true'
+      ));
+    if (!activeAnalysis) return;
+
+    const titles = new Set(['Reforma Tributária', 'Passivo Fiscal', 'Cobrança, Execução e Exposição']);
+    document.querySelectorAll('section.panel.form-panel').forEach((panel) => {
+      const subhead = panel.querySelector(':scope > .subhead');
+      const heading = subhead?.querySelector('h3');
+      if (!subhead || !titles.has(text(heading?.textContent)) || panel.dataset.radarAnalysisReady) return;
+
+      panel.dataset.radarAnalysisReady = '1';
+      panel.classList.add('radar-analysis-collapsible');
+      const content = document.createElement('div');
+      content.className = 'radar-section-content';
+      while (subhead.nextSibling) content.appendChild(subhead.nextSibling);
+      panel.appendChild(content);
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'radar-analysis-toggle';
+      button.setAttribute('aria-expanded', 'false');
+      button.textContent = 'Abrir';
+      const toggle = () => {
+        const open = panel.classList.toggle('is-open');
+        button.setAttribute('aria-expanded', String(open));
+        button.textContent = open ? 'Recolher' : 'Abrir';
+      };
+      button.addEventListener('click', (event) => { event.stopPropagation(); toggle(); });
+      subhead.addEventListener('click', (event) => { if (!event.target.closest('button')) toggle(); });
+      subhead.appendChild(button);
+    });
+  }
+
   function mount() {
     installStyle();
     enhanceDecisionMakerFields();
     collapseTimeline();
+    collapseAnalysisSections();
   }
 
   function scheduleMount() {
