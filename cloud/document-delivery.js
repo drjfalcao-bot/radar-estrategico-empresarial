@@ -332,8 +332,11 @@
     return {
       margin: [9, 8, 9, 8],
       filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1200 },
+      // PNG elimina os artefatos de compressão do JPEG. A escala de 2,5 produz
+      // aproximadamente 300 dpi na página A4 sem extrapolar o limite de canvas
+      // dos navegadores nos relatórios mais longos.
+      image: { type: 'png', quality: 1 },
+      html2canvas: { scale: 2.5, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1200, letterRendering: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.doc-grid > div', '.doc-ratings > article', '.doc-scenario', '.doc-highlight', '.proposal-services > article', '.nch-preview-payments > article', '.rsc-pdf-card', '.rsc-pdf-kpi'] }
     };

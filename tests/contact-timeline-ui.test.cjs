@@ -39,14 +39,14 @@ test('análise acompanhada deixa os três blocos fechados por padrão', () => {
 });
 
 test('release pública carrega o módulo de contato e recolhimento', () => {
-  assert.match(index, /2026\.07\.21-cloud\.9/);
+  assert.match(index, /2026\.07\.21-cloud\.10/);
   assert.match(index, /cloud\/case-contact-ui\.js\?v=20260721-cloud3/);
 });
 
 test('download da proposta usa o provedor já permitido pela aplicação', () => {
   assert.match(delivery, /cdn\.jsdelivr\.net\/npm\/html2pdf\.js@0\.10\.3/);
   assert.doesNotMatch(delivery, /cdnjs\.cloudflare\.com/);
-  assert.match(index, /cloud\/document-delivery\.js\?v=20260721-cloud9/);
+  assert.match(index, /cloud\/document-delivery\.js\?v=20260721-cloud10/);
 });
 
 test('PDF é renderizado dentro da área capturável e rejeita arquivo vazio', () => {
@@ -55,4 +55,6 @@ test('PDF é renderizado dentro da área capturável e rejeita arquivo vazio', (
   assert.match(delivery, /waitForPdfStage\(stage\)/);
   assert.match(delivery, /blob\.size < 5000/);
   assert.match(delivery, /O PDF foi gerado sem conteúdo/);
+  assert.match(delivery, /image: \{ type: 'png', quality: 1 \}/);
+  assert.match(delivery, /scale: 2\.5/);
 });
