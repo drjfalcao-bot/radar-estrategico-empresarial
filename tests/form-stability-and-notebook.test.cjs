@@ -79,4 +79,5 @@ test('PDF do construtor usa o relatório completo com a composição financeira'
   assert.match(notebook, /downloadReportFromBuilder/);
   assert.match(notebook, /RadarDocumentDelivery\?\.downloadElementPdf/);
   assert.match(notebook, /Relatorio_Estrategico_/);
+  assert.match(notebook, /preview\.innerHTML = window\.RadarDocumentBuilder\.buildReport\(lead, config\);\s*injectReportPreviewAddons\(builder, lead\)/);
 });
