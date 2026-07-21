@@ -23,6 +23,12 @@ test('Caderno inicia estratégia, relatório e proposta recolhidos', () => {
   assert.match(notebook, /data-nch-proposal/);
 });
 
+test('Caderno oferece geração rápida no topo sem substituir os editores', () => {
+  assert.match(notebook, /data-nch-quick-report/);
+  assert.match(notebook, /Gerar relatório agora/);
+  assert.match(notebook, /Usa a composição salva neste momento/);
+});
+
 test('resumo automático usa o saldo após migração no card com estratégia', () => {
   assert.match(calculator, /strategy\.querySelector\('h3'\)\.textContent = brl\(output\.strategicBalance\)/);
   assert.match(calculator, /Saldo após migração e negociação/);
@@ -47,4 +53,14 @@ test('relatório sincroniza o comparativo selecionado antes de abrir', () => {
   assert.match(notebook, /Comparativo completo da Receita Federal/);
   assert.match(notebook, /Parcelamento ordinário/);
   assert.match(notebook, /Migração para a PGFN/);
+});
+
+test('proposta compara investimento e desconto e pode ser incorporada ao relatório', () => {
+  assert.match(notebook, /Investimento aplicado/);
+  assert.match(notebook, /Desconto atingível/);
+  assert.doesNotMatch(notebook, /Investimento indicado/);
+  assert.match(notebook, /data-incorporate-proposal/);
+  assert.match(notebook, /Salvar e incorporar ao Relatório do Caso/);
+  assert.match(notebook, /caseReportFinancialSnapshot/);
+  assert.match(notebook, /data-case-financial-summary/);
 });

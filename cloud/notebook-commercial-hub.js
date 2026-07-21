@@ -73,7 +73,7 @@
     const selected = Array.isArray(lead.reportScenarioSelections) ? lead.reportScenarioSelections.length : 0;
     const strategyReady = Boolean(text(lead.manualStrategyTitle) && text(lead.manualStrategySummary));
     const proposalReady = Boolean(lead.commercialProposal?.services?.length);
-    return `<div class="nch-head"><div><span class="nch-kicker">Central de documentos e fechamento</span><h2>Do diagnóstico à contratação, dentro do Caderno.</h2><p>Revise a estratégia, monte o relatório do cliente e transforme as frentes indicadas em uma proposta totalmente editável.</p></div><span class="nch-badge">${esc(lead.companyName || 'Caso atual')}</span></div>
+    return `<div class="nch-head"><div><span class="nch-kicker">Central de documentos e fechamento</span><h2>Do diagnóstico à contratação, dentro do Caderno.</h2><p>Revise a estratégia, monte o relatório do cliente e transforme as frentes indicadas em uma proposta totalmente editável.</p></div><div class="nch-head-actions"><span class="nch-badge">${esc(lead.companyName || 'Caso atual')}</span><button class="nch-quick-report" data-nch-quick-report>Gerar relatório agora</button><small>Usa a composição salva neste momento.</small></div></div>
       <div class="nch-actions-grid">
         <details><summary><span class="nch-step">1</span><div><small>ESTRATÉGIA</small><h3>Gerar estratégia indicada</h3><em>${strategyReady ? 'Estratégia disponível' : 'Aguardando consolidação'}</em></div><b>Abrir</b></summary><div class="nch-action-body"><p>Use os riscos e cenários para construir a recomendação, as frentes e o plano de atuação.</p><button data-nch-strategy>${strategyReady ? 'Revisar estratégia' : 'Gerar estratégia'}</button></div></details>
         <details><summary><span class="nch-step">2</span><div><small>RELATÓRIO</small><h3>Gerar diagnóstico final</h3><em>${selected} cenário${selected === 1 ? '' : 's'} selecionado${selected === 1 ? '' : 's'}</em></div><b>Abrir</b></summary><div class="nch-action-body"><p>Apresente riscos em português, comparação de cenários, redução e conclusão estratégica.</p><button data-nch-report>Montar relatório</button></div></details>
@@ -98,6 +98,7 @@
         if (event.target.closest('[data-nch-strategy]')) openStrategy();
         if (event.target.closest('[data-nch-report]')) openReport();
         if (event.target.closest('[data-nch-proposal]')) openProposal();
+        if (event.target.closest('[data-nch-quick-report]')) openReport();
       });
     }
     const signature = JSON.stringify({
@@ -168,7 +169,7 @@
     const originalBuild = builder.buildReport?.bind(builder);
     if (originalBuild) builder.buildReport = (lead, config) => {
       const report = originalBuild(lead, config);
-      const block = fullComparisonHtml(lead);
+      const block = `${fullComparisonHtml(lead)}${caseReportFinancialHtml(lead)}`;
       if (!block) return report;
       const marker = '<section class="doc-section"><h2>Simulações consideradas</h2>';
       return report.includes(marker) ? report.replace(marker, `${block}${marker}`) : report.replace('</main>', `${block}</main>`);
@@ -362,13 +363,27 @@
   function proposalPreview(lead, state) {
     const included = state.services.filter((service) => service.included);
     const total = included.reduce((sum, service) => sum + number(service.cost), 0);
-    return `<article class="proposal-preview nch-proposal-preview" id="nch-proposal-preview"><header><div><span>Radar Estratégico Empresarial</span><h1>PROPOSTA DE ATUAÇÃO ESTRATÉGICA</h1></div><div><small>EMPRESA</small><strong>${esc(lead.companyName || 'Empresa não informada')}</strong><span>${esc(lead.cnpj || '')}</span></div></header><section><h2>Contexto e objetivo</h2><p>${esc(lead.manualStrategySummary || lead.diagnosticFinal?.summary || 'Atuação estruturada a partir do diagnóstico e das prioridades identificadas para o caso.')}</p></section><section><h2>Serviços indicados</h2><div class="nch-preview-services">${included.map((service) => `<div><span><strong>${esc(service.name)}</strong><small>${esc(service.description)}</small></span><b>${money(service.cost)}${service.billing === 'mensal' ? '/mês' : service.billing === 'exito' ? ' · êxito' : ''}</b></div>`).join('') || '<p>Nenhum serviço selecionado.</p>'}</div></section><section class="nch-preview-total"><span>Investimento indicado</span><strong>${money(total)}</strong></section><section class="nch-preview-payment-section"><h2>Métodos de pagamento disponíveis</h2>${paymentMethodsPreview(state, total)}${state.paymentTerms ? `<p class="nch-preview-payment-notes"><strong>Condições complementares:</strong> ${esc(state.paymentTerms)}</p>` : ''}<p class="nch-preview-validity"><strong>Validade:</strong> ${esc(state.validity)}</p>${state.notes ? `<p class="nch-preview-payment-notes">${esc(state.notes)}</p>` : ''}</section><footer>A contratação formaliza o escopo, as responsabilidades e o início da validação documental da estratégia selecionada.</footer></article>`;
+    const reduction = attainableReduction(lead);
+    return `<article class="proposal-preview nch-proposal-preview" id="nch-proposal-preview"><header><div><span>Radar Estratégico Empresarial</span><h1>PROPOSTA DE ATUAÇÃO ESTRATÉGICA</h1></div><div><small>EMPRESA</small><strong>${esc(lead.companyName || 'Empresa não informada')}</strong><span>${esc(lead.cnpj || '')}</span></div></header><section><h2>Contexto e objetivo</h2><p>${esc(lead.manualStrategySummary || lead.diagnosticFinal?.summary || 'Atuação estruturada a partir do diagnóstico e das prioridades identificadas para o caso.')}</p></section><section><h2>Serviços indicados</h2><div class="nch-preview-services">${included.map((service) => `<div><span><strong>${esc(service.name)}</strong><small>${esc(service.description)}</small></span><b>${money(service.cost)}${service.billing === 'mensal' ? '/mês' : service.billing === 'exito' ? ' · êxito' : ''}</b></div>`).join('') || '<p>Nenhum serviço selecionado.</p>'}</div></section><section class="nch-investment-comparison"><article><span>Investimento aplicado</span><strong>${money(total)}</strong></article><article class="benefit"><span>Desconto atingível</span><strong>${money(reduction)}</strong><small>Projeção condicionada à validação e implementação da estratégia.</small></article></section><section class="nch-preview-payment-section"><h2>Métodos de pagamento disponíveis</h2>${paymentMethodsPreview(state, total)}${state.paymentTerms ? `<p class="nch-preview-payment-notes"><strong>Condições complementares:</strong> ${esc(state.paymentTerms)}</p>` : ''}<p class="nch-preview-validity"><strong>Validade:</strong> ${esc(state.validity)}</p>${state.notes ? `<p class="nch-preview-payment-notes">${esc(state.notes)}</p>` : ''}</section><footer>A contratação formaliza o escopo, as responsabilidades e o início da validação documental da estratégia selecionada.</footer></article>`;
   }
 
   function proposalHtml(lead, state) {
     const total = state.services.filter((service) => service.included).reduce((sum, service) => sum + number(service.cost), 0);
     const paymentReady = total > 0;
-    return `<section class="nch-modal wide"><header><div><span class="nch-kicker">Montagem da proposta</span><h2>Serviços indicados, valores e pagamento</h2><p>As sugestões vêm do diagnóstico. Tudo permanece editável antes da apresentação ao cliente.</p></div><button data-nch-close>×</button></header><div class="nch-proposal-layout"><section class="nch-proposal-editor"><label class="nch-field"><span>Título da proposta</span><input name="proposalTitle" value="${esc(state.title)}"></label><div class="nch-services-head"><div><h3>Serviços da proposta</h3><p>Marque o que entra e ajuste livremente descrição e custo.</p></div><button class="nch-secondary" data-add-service>+ Serviço</button></div><div class="nch-services-list">${state.services.map(serviceRow).join('')}</div><section class="nch-payment ${paymentReady ? 'is-ready' : 'is-locked'}" data-payment-section><div class="nch-payment-heading"><div><h3>Métodos de pagamento disponíveis</h3><p>Habilite as opções que aparecerão no fim da proposta financeira.</p></div><button class="nch-secondary" data-add-payment ${paymentReady ? '' : 'disabled'}>+ Método</button></div><p class="nch-payment-status" data-payment-status>${paymentReady ? 'Pagamento habilitado para o investimento selecionado.' : 'Informe um valor em ao menos um serviço selecionado para habilitar o pagamento.'}</p><fieldset data-payment-controls ${paymentReady ? '' : 'disabled'}><div class="nch-payment-methods">${state.paymentMethods.map(paymentMethodRow).join('')}</div><label class="nch-field"><span>Condições complementares — opcional</span><textarea name="paymentTerms" rows="3" placeholder="Ex.: cobrança mediante aprovação, vencimento ou condição específica.">${esc(state.paymentTerms)}</textarea></label><div class="nch-payment-grid compact"><label><span>Validade da proposta</span><input name="proposalValidity" value="${esc(state.validity)}"></label></div><label class="nch-field"><span>Observações</span><textarea name="proposalNotes" rows="3">${esc(state.notes)}</textarea></label></fieldset></section></section><aside class="nch-proposal-preview-host">${proposalPreview(lead, state)}</aside></div><footer><button class="nch-secondary" data-nch-close>Fechar</button><button class="nch-secondary" data-go-simulations>Salvar e voltar às Simulações</button><button class="nch-primary" data-save-proposal>Salvar proposta no Caderno</button></footer></section>`;
+    return `<section class="nch-modal wide"><header><div><span class="nch-kicker">Montagem da proposta</span><h2>Serviços indicados, valores e pagamento</h2><p>As sugestões vêm do diagnóstico. Tudo permanece editável antes da apresentação ao cliente.</p></div><button data-nch-close>×</button></header><div class="nch-proposal-layout"><section class="nch-proposal-editor"><label class="nch-field"><span>Título da proposta</span><input name="proposalTitle" value="${esc(state.title)}"></label><div class="nch-services-head"><div><h3>Serviços da proposta</h3><p>Marque o que entra e ajuste livremente descrição e custo.</p></div><button class="nch-secondary" data-add-service>+ Serviço</button></div><div class="nch-services-list">${state.services.map(serviceRow).join('')}</div><section class="nch-payment ${paymentReady ? 'is-ready' : 'is-locked'}" data-payment-section><div class="nch-payment-heading"><div><h3>Métodos de pagamento disponíveis</h3><p>Habilite as opções que aparecerão no fim da proposta financeira.</p></div><button class="nch-secondary" data-add-payment ${paymentReady ? '' : 'disabled'}>+ Método</button></div><p class="nch-payment-status" data-payment-status>${paymentReady ? 'Pagamento habilitado para o investimento selecionado.' : 'Informe um valor em ao menos um serviço selecionado para habilitar o pagamento.'}</p><fieldset data-payment-controls ${paymentReady ? '' : 'disabled'}><div class="nch-payment-methods">${state.paymentMethods.map(paymentMethodRow).join('')}</div><label class="nch-field"><span>Condições complementares — opcional</span><textarea name="paymentTerms" rows="3" placeholder="Ex.: cobrança mediante aprovação, vencimento ou condição específica.">${esc(state.paymentTerms)}</textarea></label><div class="nch-payment-grid compact"><label><span>Validade da proposta</span><input name="proposalValidity" value="${esc(state.validity)}"></label></div><label class="nch-field"><span>Observações</span><textarea name="proposalNotes" rows="3">${esc(state.notes)}</textarea></label></fieldset></section></section><aside class="nch-proposal-preview-host">${proposalPreview(lead, state)}</aside></div><footer><button class="nch-secondary" data-nch-close>Fechar</button><button class="nch-secondary" data-go-simulations>Salvar e voltar às Simulações</button><button class="nch-secondary" data-save-proposal>Salvar proposta no Caderno</button><button class="nch-primary" data-incorporate-proposal>Salvar e incorporar ao Relatório do Caso</button></footer></section>`;
+  }
+
+  function attainableReduction(lead) {
+    return Math.max(0, number(lead?.reportComparison?.strategicReduction)
+      || number(lead?.diagnosticFinal?.potentialReduction)
+      || number(lead?.diagnosticFinal?.reduction));
+  }
+
+  function caseReportFinancialHtml(lead) {
+    const snapshot = lead?.caseReportFinancialSnapshot;
+    if (!snapshot?.services?.length) return '';
+    const services = snapshot.services.filter((service) => service.included !== false);
+    return `<section class="doc-section nch-case-financial" data-case-financial-summary><h2>Proposta de atuação — síntese financeira</h2><div class="nch-investment-comparison"><article><span>Investimento aplicado</span><strong>${money(snapshot.investment)}</strong></article><article class="benefit"><span>Desconto atingível</span><strong>${money(snapshot.attainableReduction)}</strong><small>Projeção condicionada à validação e implementação da estratégia.</small></article></div><h3>Escopo financeiro incorporado</h3><div class="nch-report-financial-services">${services.map((service) => `<div><span><strong>${esc(service.name)}</strong><small>${esc(service.description)}</small></span><b>${money(service.cost)}${service.billing === 'mensal' ? '/mês' : service.billing === 'exito' ? ' · êxito' : ''}</b></div>`).join('')}</div><h3>Condições de pagamento</h3><p>${esc(snapshot.paymentText || 'Condições a definir.')}</p>${snapshot.notes ? `<p><strong>Observações:</strong> ${esc(snapshot.notes)}</p>` : ''}</section>`;
   }
 
   function goToSimulations(node) {
@@ -438,7 +453,7 @@
     if (host) host.innerHTML = proposalPreview(lead, state);
   }
 
-  function saveProposal(ctx, root) {
+  function saveProposal(ctx, root, incorporate = false) {
     const state = collectProposal(root);
     state.updatedAt = new Date().toISOString();
     ctx.lead.commercialProposal = state;
@@ -469,6 +484,19 @@
       notes: state.notes,
       generatedAt: state.updatedAt
     };
+    if (incorporate) {
+      ctx.lead.caseReportFinancialSnapshot = {
+        title: state.title,
+        services: included.map((service) => ({ ...service })),
+        investment: total,
+        attainableReduction: attainableReduction(ctx.lead),
+        paymentMethods: state.paymentMethods.filter((method) => method.enabled).map((method) => ({ ...method })),
+        paymentText: terms,
+        validity: state.validity,
+        notes: state.notes,
+        updatedAt: state.updatedAt
+      };
+    }
     persist(ctx, { title: 'Proposta comercial atualizada', body: `${included.length} serviço(s) selecionado(s), total indicado de ${money(total)}.`, tags: ['proposta', 'estratégia'] });
     return state;
   }
@@ -511,6 +539,12 @@
         refreshProposalPreview(body, ctx.lead);
         mountHub();
         window.RadarExt?.toast?.('Proposta salva no Caderno.');
+      }
+      if (event.target.closest('[data-incorporate-proposal]')) {
+        saveProposal(ctx, body, true);
+        refreshProposalPreview(body, ctx.lead);
+        mountHub();
+        window.RadarExt?.toast?.('Proposta incorporada ao Relatório do Caso.');
       }
       if (event.target.closest('[data-go-simulations]')) {
         saveProposal(ctx, body);
