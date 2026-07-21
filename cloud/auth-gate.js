@@ -38,7 +38,7 @@
       })));
     }
 
-    await loadScript('./v3-loader.js?v=20260720-cloud1', 'radar-main-loader');
+    await loadScript('./v3-loader.js?v=20260721-cloud3', 'radar-main-loader');
     await loadScript('./v3-ext-loader.js?v=20260720-cloud1', 'radar-extension-loader');
   }
 
