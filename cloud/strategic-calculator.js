@@ -511,6 +511,15 @@
       reportStrategicStatement: `Com a estratégia certa, o potencial de redução é de ${brl(potential)}`,
       reportPotentialReduction: potential,
       reportSelectedScenarios: simulations.filter((item) => item.id !== 'strategic_total'),
+      reportComparison: {
+        generatedAt: now,
+        selections: [...state.selections],
+        totalDebt: output.totalDebt,
+        strategicReduction: output.strategicReduction,
+        strategicBalance: output.strategicBalance,
+        rfb: { ...output.rfb },
+        migration: { ...output.migration }
+      },
       selectedScenarioId: state.selections.length ? `strategic:${state.selections.join('+')}` : '',
       simulations,
       ratings,
