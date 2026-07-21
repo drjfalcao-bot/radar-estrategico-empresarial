@@ -141,6 +141,9 @@
 
   function openReport(attempt = 0) {
     if (window.RadarDocumentBuilder?.open) {
+      // Refresh the selected simulations, comparison and diagnostic before
+      // the legacy builder reads the case from storage.
+      window.RadarStrategicCalculator?.syncReportData?.();
       window.RadarDocumentBuilder.open('report');
       restrictReportBuilder();
       setTimeout(() => translateRiskLabels(document.getElementById('radar-doc-builder') || document), 50);
@@ -325,7 +328,19 @@
   function proposalHtml(lead, state) {
     const total = state.services.filter((service) => service.included).reduce((sum, service) => sum + number(service.cost), 0);
     const paymentReady = total > 0;
-    return `<section class="nch-modal wide"><header><div><span class="nch-kicker">Montagem da proposta</span><h2>Serviços indicados, valores e pagamento</h2><p>As sugestões vêm do diagnóstico. Tudo permanece editável antes da apresentação ao cliente.</p></div><button data-nch-close>×</button></header><div class="nch-proposal-layout"><section class="nch-proposal-editor"><label class="nch-field"><span>Título da proposta</span><input name="proposalTitle" value="${esc(state.title)}"></label><div class="nch-services-head"><div><h3>Serviços da proposta</h3><p>Marque o que entra e ajuste livremente descrição e custo.</p></div><button class="nch-secondary" data-add-service>+ Serviço</button></div><div class="nch-services-list">${state.services.map(serviceRow).join('')}</div><section class="nch-payment ${paymentReady ? 'is-ready' : 'is-locked'}" data-payment-section><div class="nch-payment-heading"><div><h3>Métodos de pagamento disponíveis</h3><p>Habilite as opções que aparecerão no fim da proposta financeira.</p></div><button class="nch-secondary" data-add-payment ${paymentReady ? '' : 'disabled'}>+ Método</button></div><p class="nch-payment-status" data-payment-status>${paymentReady ? 'Pagamento habilitado para o investimento selecionado.' : 'Informe um valor em ao menos um serviço selecionado para habilitar o pagamento.'}</p><fieldset data-payment-controls ${paymentReady ? '' : 'disabled'}><div class="nch-payment-methods">${state.paymentMethods.map(paymentMethodRow).join('')}</div><label class="nch-field"><span>Condições complementares — opcional</span><textarea name="paymentTerms" rows="3" placeholder="Ex.: cobrança mediante aprovação, vencimento ou condição específica.">${esc(state.paymentTerms)}</textarea></label><div class="nch-payment-grid compact"><label><span>Validade da proposta</span><input name="proposalValidity" value="${esc(state.validity)}"></label></div><label class="nch-field"><span>Observações</span><textarea name="proposalNotes" rows="3">${esc(state.notes)}</textarea></label></fieldset></section></section><aside class="nch-proposal-preview-host">${proposalPreview(lead, state)}</aside></div><footer><button class="nch-secondary" data-nch-close>Fechar</button><button class="nch-primary" data-save-proposal>Salvar proposta no Caderno</button></footer></section>`;
+    return `<section class="nch-modal wide"><header><div><span class="nch-kicker">Montagem da proposta</span><h2>Serviços indicados, valores e pagamento</h2><p>As sugestões vêm do diagnóstico. Tudo permanece editável antes da apresentação ao cliente.</p></div><button data-nch-close>×</button></header><div class="nch-proposal-layout"><section class="nch-proposal-editor"><label class="nch-field"><span>Título da proposta</span><input name="proposalTitle" value="${esc(state.title)}"></label><div class="nch-services-head"><div><h3>Serviços da proposta</h3><p>Marque o que entra e ajuste livremente descrição e custo.</p></div><button class="nch-secondary" data-add-service>+ Serviço</button></div><div class="nch-services-list">${state.services.map(serviceRow).join('')}</div><section class="nch-payment ${paymentReady ? 'is-ready' : 'is-locked'}" data-payment-section><div class="nch-payment-heading"><div><h3>Métodos de pagamento disponíveis</h3><p>Habilite as opções que aparecerão no fim da proposta financeira.</p></div><button class="nch-secondary" data-add-payment ${paymentReady ? '' : 'disabled'}>+ Método</button></div><p class="nch-payment-status" data-payment-status>${paymentReady ? 'Pagamento habilitado para o investimento selecionado.' : 'Informe um valor em ao menos um serviço selecionado para habilitar o pagamento.'}</p><fieldset data-payment-controls ${paymentReady ? '' : 'disabled'}><div class="nch-payment-methods">${state.paymentMethods.map(paymentMethodRow).join('')}</div><label class="nch-field"><span>Condições complementares — opcional</span><textarea name="paymentTerms" rows="3" placeholder="Ex.: cobrança mediante aprovação, vencimento ou condição específica.">${esc(state.paymentTerms)}</textarea></label><div class="nch-payment-grid compact"><label><span>Validade da proposta</span><input name="proposalValidity" value="${esc(state.validity)}"></label></div><label class="nch-field"><span>Observações</span><textarea name="proposalNotes" rows="3">${esc(state.notes)}</textarea></label></fieldset></section></section><aside class="nch-proposal-preview-host">${proposalPreview(lead, state)}</aside></div><footer><button class="nch-secondary" data-nch-close>Fechar</button><button class="nch-secondary" data-go-simulations>Salvar e voltar às Simulações</button><button class="nch-primary" data-save-proposal>Salvar proposta no Caderno</button></footer></section>`;
+  }
+
+  function goToSimulations(node) {
+    node.classList.remove('show');
+    const tab = [...document.querySelectorAll('button,a,[role="tab"]')]
+      .find((candidate) => ['Cenários', 'Simulações'].includes(text(candidate.textContent)));
+    if (tab) {
+      tab.click();
+      window.RadarStrategicCalculator?.mount?.();
+      return;
+    }
+    window.RadarExt?.toast?.('A aba de Simulações ainda está carregando. Feche e tente novamente.', 'warn');
   }
 
   function collectProposal(root) {
@@ -456,6 +471,10 @@
         refreshProposalPreview(body, ctx.lead);
         mountHub();
         window.RadarExt?.toast?.('Proposta salva no Caderno.');
+      }
+      if (event.target.closest('[data-go-simulations]')) {
+        saveProposal(ctx, body);
+        goToSimulations(node);
       }
     });
   }
