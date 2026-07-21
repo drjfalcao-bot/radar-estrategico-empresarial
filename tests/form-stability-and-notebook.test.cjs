@@ -42,4 +42,9 @@ test('relatório sincroniza o comparativo selecionado antes de abrir', () => {
   assert.match(calculator, /syncReportData[\s\S]*persist\(ctx\)/);
   assert.match(notebook, /RadarStrategicCalculator\?\.syncReportData\?\.\(\)/);
   assert.match(calculator, /reportSelectedScenarios: simulations\.filter/);
+  assert.match(calculator, /reportComparison: \{/);
+  assert.match(notebook, /data-full-calculator-comparison/);
+  assert.match(notebook, /Comparativo completo da Receita Federal/);
+  assert.match(notebook, /Parcelamento ordinário/);
+  assert.match(notebook, /Migração para a PGFN/);
 });
