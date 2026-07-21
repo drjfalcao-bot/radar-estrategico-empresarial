@@ -139,13 +139,53 @@
     return true;
   }
 
+  function fullComparisonHtml(lead) {
+    const comparison = lead?.reportComparison;
+    const selections = new Set(comparison?.selections || lead?.reportScenarioSelections || []);
+    if (!comparison || (!selections.has('rfb') && !selections.has('migration'))) return '';
+    const rfb = comparison.rfb || {};
+    const migration = comparison.migration || {};
+    return `<section class="doc-section nch-full-comparison" data-full-calculator-comparison><h2>Comparativo completo da Receita Federal</h2>
+      <div class="nch-comparison-kpis"><article><span>Passivo total</span><strong>${money(comparison.totalDebt)}</strong><small>RFB + PGFN</small></article><article class="positive"><span>Redução estratégica</span><strong>${money(comparison.strategicReduction)}</strong><small>PGFN atual + migração da RFB</small></article><article><span>Saldo projetado</span><strong>${money(comparison.strategicBalance)}</strong><small>Após a redução estimada</small></article></div>
+      <div class="nch-comparison-columns"><article><header><small>RFB CONVENCIONAL</small><h3>Parcelamento ordinário</h3><p>Projeção sem redução, conforme a entrada selecionada.</p></header><dl><div><dt>Dívida considerada</dt><dd>${money(rfb.debt)}</dd></div><div><dt>Entrada (${number(rfb.entryRate)}%)</dt><dd>${money(rfb.entry)}</dd></div><div><dt>Saldo parcelado</dt><dd>${number(rfb.months)}x de ${money(rfb.installment)}</dd></div><div><dt>Redução estimada</dt><dd>${money(rfb.reduction)}</dd></div></dl></article>
+      <article class="strategic"><header><small>AÇÃO ESTRATÉGICA</small><h3>Migração para a PGFN</h3><p>Entrada fracionada, redução projetada e saldo alongado.</p></header><dl><div><dt>Entrada em ${number(migration.entryMonths)}x</dt><dd>${money(migration.entryInstallment)}/mês</dd></div><div><dt>Saldo após a entrada</dt><dd>${number(migration.balanceMonths)}x de ${money(migration.phaseTwoInstallment)}</dd></div><div><dt>Prazo projetado</dt><dd>${number(migration.projectedTotalMonths)} meses</dd></div><div><dt>Redução potencial</dt><dd>${money(migration.reduction)}</dd></div></dl></article></div>
+      <div class="nch-comparison-totals"><article><span>Custo projetado no cenário convencional</span><strong>${money(rfb.debt)}</strong></article><article class="positive"><span>Potencial de redução com a estratégia</span><strong>${money(migration.reduction)}</strong></article></div></section>`;
+  }
+
+  function injectFullComparison(root, lead) {
+    if (!root || root.querySelector('[data-full-calculator-comparison]')) return;
+    const main = root.querySelector('.generated-document main');
+    const html = fullComparisonHtml(lead);
+    if (!main || !html) return;
+    const simulations = [...main.querySelectorAll('.doc-section')].find((section) => /Simulações consideradas/i.test(text(section.querySelector('h2')?.textContent)));
+    if (simulations) simulations.insertAdjacentHTML('beforebegin', html);
+    else main.insertAdjacentHTML('beforeend', html);
+  }
+
+  function patchDocumentBuilder() {
+    const builder = window.RadarDocumentBuilder;
+    if (!builder || builder.__fullComparisonPatched) return;
+    const originalBuild = builder.buildReport?.bind(builder);
+    if (originalBuild) builder.buildReport = (lead, config) => {
+      const report = originalBuild(lead, config);
+      const block = fullComparisonHtml(lead);
+      if (!block) return report;
+      const marker = '<section class="doc-section"><h2>Simulações consideradas</h2>';
+      return report.includes(marker) ? report.replace(marker, `${block}${marker}`) : report.replace('</main>', `${block}</main>`);
+    };
+    builder.__fullComparisonPatched = true;
+  }
+
   function openReport(attempt = 0) {
     if (window.RadarDocumentBuilder?.open) {
       // Refresh the selected simulations, comparison and diagnostic before
       // the legacy builder reads the case from storage.
       window.RadarStrategicCalculator?.syncReportData?.();
+      patchDocumentBuilder();
       window.RadarDocumentBuilder.open('report');
       restrictReportBuilder();
+      const ctx = context();
+      setTimeout(() => injectFullComparison(document.getElementById('radar-doc-builder'), ctx?.lead), 20);
       setTimeout(() => translateRiskLabels(document.getElementById('radar-doc-builder') || document), 50);
       return;
     }
